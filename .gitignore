@@ -1,0 +1,19 @@
+# PlatformIO
+.pio/
+.vscode/
+.pio.libdeps/
+.pioenvs/
+.clang_complete
+.gcc-flags.json
+
+# OS/system
+.DS_Store
+Thumbs.db
+
+# Editor-specifiek
+*.swp
+*.swo
+*.bak
+*.tmp
+.idea/
+*.code-workspace
