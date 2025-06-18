@@ -51,6 +51,21 @@ std::string hashLinkKey(const esp_link_key& linkKey) {
   return std::string(hex);
 }
 
+/**
+ * @class MyServerCallbacks
+ * @brief Custom BLE server callbacks for handling device connection and disconnection events.
+ *
+ * This class inherits from BLEServerCallbacks and overrides the onConnect and onDisconnect methods
+ * to provide custom behavior when a BLE client connects to or disconnects from the server.
+ *
+ * - onConnect: Logs the MAC address of the connecting device.
+ * - onDisconnect: Logs the MAC address of the disconnecting device, frees any allocated device info,
+ *   and restarts BLE advertising.
+ *
+ * @note
+ * - Assumes existence of DPRINTF for logging, pDevInfo for device information management,
+ *   and pAdvertising for BLE advertising control.
+ */
 class MyServerCallbacks : public BLEServerCallbacks {
   void onConnect(BLEServer* pServer, esp_ble_gatts_cb_param_t* param) override {
     std::string macStr = BLEAddress(param->connect.remote_bda).toString();
@@ -68,6 +83,23 @@ class MyServerCallbacks : public BLEServerCallbacks {
   }
 };
 
+/**
+ * @class MySecurity
+ * @brief Custom BLE security callbacks implementation for ESP32 BLE server.
+ *
+ * This class extends BLESecurityCallbacks to handle BLE security events such as passkey requests,
+ * passkey notifications, PIN confirmation, security requests, and authentication completion.
+ * It manages device pairing, passkey generation, and device authorization, integrating with
+ * persistent storage and proximity features.
+ *
+ * - Generates a random 6-digit passkey for pairing.
+ * - Notifies and confirms passkey during pairing process.
+ * - Handles security requests and authentication completion.
+ * - On successful authentication, updates or creates device authorization info and triggers RSSI update.
+ * - On authentication failure, manages device removal and restarts BLE advertising.
+ *
+ * @note Integrates with JSON-based device authorization and proximity RSSI tracking.
+ */
 class MySecurity : public BLESecurityCallbacks {
   uint32_t onPassKeyRequest() override {
     uint32_t currentPasskey = random(100000, 999999);
@@ -132,6 +164,18 @@ class MySecurity : public BLESecurityCallbacks {
   }
 };
 
+/**
+ * @brief Notifies a BLE client of a characteristic value change if notifications are enabled.
+ *
+ * This function sets the value of the specified BLE characteristic and sends a notification
+ * to connected clients if they have subscribed to notifications (i.e., if the Client Characteristic
+ * Configuration Descriptor (CCCD, UUID 0x2902) has notifications enabled).
+ *
+ * @param pChar Pointer to the BLECharacteristic to notify.
+ * @param value The new value to set for the characteristic (as a null-terminated string).
+ * @return true if the notification was sent to at least one client, false otherwise (e.g., if
+ *         notifications are not enabled or the descriptor is missing).
+ */
 bool notifyChar(BLECharacteristic* pChar, const char* value) {
   DPRINTF(0, "notifyChar(%s, %s)", pChar->getUUID().toString().c_str(), value);
   if (!pChar) return false;
@@ -155,6 +199,17 @@ bool notifyChar(BLECharacteristic* pChar, const char* value) {
   }
 }
 
+/**
+ * @brief Reads the entire contents of a JSON file and returns it as a std::string.
+ *
+ * This function seeks to the beginning of the provided file, reads all available bytes,
+ * and appends them to a std::string. After reading, it resets the file pointer to the start.
+ * It also logs debug information about the operation and the file contents.
+ *
+ * @param file Reference to the File object to read from. The file should be open for reading.
+ * @param filename The name of the file, used for logging purposes.
+ * @return std::string The contents of the file as a string.
+ */
 std::string printJsonFile(File& file, const char* filename) {
   DPRINTF(0, "printJsonFile(%s)", filename);
   std::string contents;
@@ -167,6 +222,34 @@ std::string printJsonFile(File& file, const char* filename) {
   return contents;
 }
 
+/**
+ * @class DoorCommandCallback
+ * @brief BLE characteristic callback handler for door control commands.
+ *
+ * This class handles write events to a BLE characteristic, interpreting and executing
+ * commands related to door control and device management. Supported commands include:
+ * - "open": Opens the door (sets switch state to true).
+ * - "close": Closes the door (sets switch state to false).
+ * - "toggle": Toggles the door state.
+ * - "status": Reports the current door state ("OPEN" or "CLOSED").
+ * - "name=<new_name>": Sets the device name to <new_name> and saves it to persistent storage.
+ * - "json": Reads and sends the device information JSON file over BLE.
+ * - "format": Formats the LittleFS filesystem.
+ *
+ * The callback ensures that only registered and paired devices can issue commands.
+ * Invalid or unauthorized commands are rejected and reported via BLE notifications.
+ *
+ * @note The class assumes the existence of global or member variables/functions:
+ *       - pDevInfo: Pointer to device information structure.
+ *       - switchState: Boolean representing the door's current state.
+ *       - doorStatusChar: BLECharacteristic used for status notifications.
+ *       - notifyChar(): Function to send BLE notifications.
+ *       - addToJson(): Function to update device info in JSON.
+ *       - printJsonFile(): Function to read and format JSON file content.
+ *       - fAutDevs: Path to the device info JSON file.
+ *       - LittleFS: Filesystem object for persistent storage.
+ *       - DPRINTF: Debug print macro/function.
+ */
 class DoorCommandCallback : public BLECharacteristicCallbacks {
   void onWrite(BLECharacteristic* pChar, esp_ble_gatts_cb_param_t* param) override {
     if (!pDevInfo) {
@@ -230,7 +313,7 @@ class DoorCommandCallback : public BLECharacteristicCallbacks {
         }
       }
 
-      if (value == "format") {
+      if (value == "format" && pDevInfo->isAdmin) {
         if (!LittleFS.format()) {
           DPRINTF(3, "Failed to format LittleFS\n");
         } else {
@@ -246,6 +329,18 @@ bool getDoorState(BLEAddress peerAddress) {
   return switchState;
 }
 
+/**
+ * @brief Removes a device entry from a JSON file based on its key hash.
+ *
+ * This function reads a JSON file containing authorized devices, removes the entry
+ * corresponding to the provided device's key hash, and writes the updated JSON back to the file.
+ * It logs actions and errors using DPRINTF at various verbosity levels.
+ *
+ * @param device Pointer to a deviceInfo structure containing the keyHash to identify the device.
+ *
+ * @note The function uses LittleFS for file operations and ArduinoJson for JSON parsing and serialization.
+ * @note If the device is not found or file operations fail, appropriate debug messages are logged.
+ */
 void removeFromJson(deviceInfo* device) {
   DPRINTF(0, "removeFromJson(%s)", device->keyHash.c_str());
 
@@ -285,6 +380,28 @@ void removeFromJson(deviceInfo* device) {
   file.close();
 }
 
+/**
+ * @brief Adds or updates a device entry in a JSON file stored on LittleFS.
+ *
+ * This function reads a JSON file containing authorized device information,
+ * adds a new device or updates an existing device entry based on the provided
+ * deviceInfo structure, and writes the updated JSON back to the file.
+ *
+ * @param device Pointer to a deviceInfo structure containing device details
+ *               such as keyHash, mac address, name, paired status, and RSSI.
+ *
+ * The function performs the following steps:
+ * 1. Attempts to read the existing JSON file from LittleFS.
+ * 2. If the file does not exist or is invalid, it starts with an empty JSON document.
+ * 3. Checks if the device (by keyHash) already exists in the JSON.
+ *    - If it exists, updates the device information.
+ *    - If not, adds a new device entry.
+ * 4. Writes the updated JSON document back to the file.
+ * 5. Logs actions and errors using DPRINTF.
+ *
+ * @note The function assumes that LittleFS is mounted and available.
+ * @note The file path is specified by the global variable fAutDevs.
+ */
 void addToJson(deviceInfo* device) {
   DPRINTF(0, "addToJson(%s, %d)", device->keyHash.c_str(), device->rssi);
 
@@ -352,10 +469,6 @@ deviceInfo* getAuthorizedDeviceFromJson(const std::string& keyHash) {
     return nullptr;  // Return nullptr if file does not exist
   }
 
-#ifdef DEBUG_LEVEL
-  printJsonFile(file, fAutDevs);  // Print the JSON file content for debugging
-#endif
-
   JsonDocument doc;
   DeserializationError err = deserializeJson(doc, file);
   file.close();
@@ -381,6 +494,14 @@ deviceInfo* getAuthorizedDeviceFromJson(const std::string& keyHash) {
   return dInfo;
 }
 
+/**
+ * @brief Retrieves the current device information.
+ *
+ * This function returns a pointer to the existing deviceInfo structure if it is available.
+ * If the device information is not available, it returns nullptr.
+ *
+ * @return deviceInfo* Pointer to the deviceInfo structure, or nullptr if not available.
+ */
 deviceInfo* getDeviceInfo() {
   if (pDevInfo)
     return pDevInfo;  // Return existing deviceInfo if available
@@ -388,6 +509,14 @@ deviceInfo* getDeviceInfo() {
     return nullptr;
 }
 
+/**
+ * @brief Requests the RSSI (Received Signal Strength Indicator) value from a BLE peer device.
+ *
+ * This function initiates a request to read the RSSI value from the specified BLE peer address.
+ * It logs the request and handles any errors that may occur during the process.
+ *
+ * @param peerAddress The BLEAddress object representing the peer device from which to request the RSSI.
+ */
 void requestProximity(BLEAddress peerAddress) {
   DPRINTF(0, "Request RSSI from: %s", peerAddress.toString().c_str());
   esp_err_t err = esp_ble_gap_read_rssi((uint8_t*)peerAddress.getNative());
@@ -396,6 +525,23 @@ void requestProximity(BLEAddress peerAddress) {
   }
 }
 
+/**
+ * @brief Handles GAP (Generic Access Profile) BLE events, specifically processes RSSI read completion events.
+ *
+ * This function is called when a GAP BLE event occurs. It currently handles the ESP_GAP_BLE_READ_RSSI_COMPLETE_EVT event,
+ * which is triggered when an RSSI (Received Signal Strength Indicator) read operation completes.
+ *
+ * - On successful RSSI read, it:
+ *   - Converts the remote device's MAC address to a string.
+ *   - Logs the RSSI value and MAC address.
+ *   - Checks if the MAC address matches the expected device information.
+ *   - If a trigger flag is set, updates the device's RSSI, saves the information to a JSON file, and resets the flag.
+ *   - Notifies the relevant BLE characteristic with the RSSI value.
+ * - On failure, logs the failure.
+ *
+ * @param event The GAP BLE callback event type.
+ * @param param Pointer to the event parameters, containing event-specific data.
+ */
 void handleGAPEvent(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t* param) {
   DPRINTF(0, "Event %d received", event);
   switch (event) {
