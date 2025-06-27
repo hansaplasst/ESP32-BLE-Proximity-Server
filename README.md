@@ -19,8 +19,8 @@ A framework for developing Bluetooth Low Energy (BLE) proximity-based applicatio
 ├── src/           # Main source code (main.cpp, ble_server.cpp)
 ├── include/       # Header files (ble_server.h)
 ├── libdeps/       # PlatformIO library dependencies
-├── [`README.md`](README.md )      # This file
-├── [`platformio.ini`](platformio.ini ) # PlatformIO project configuration
+├── README.md      # This file
+├── platformio.ini # PlatformIO project configuration
 └── LICENSE        # License information
 ```
 

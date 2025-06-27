@@ -9,13 +9,17 @@
 
 void setup() {
   Serial.begin(BAUDRATE);
-  // delay(5000);  // Allow time for the serial monitor to connect
+  while (!Serial) {
+    ;  // Wait for serial port to connect. Needed for native USB
+  }
+  DPRINTF(1, "Setup started");
   // Serial.setDebugOutput(true);
 
   pinMode(LED_BUILTIN, OUTPUT);
   digitalWrite(LED_BUILTIN, HIGH);  // Turn the RGB LED white
 
   initBLEServer(DEVICE_NAME);
+  printESPInfo();  // Print ESP information for debugging
 
   DPRINTF(1, "%s Initialized,\n\tWaiting for client...", DEVICE_NAME);
   digitalWrite(LED_BUILTIN, LOW);
