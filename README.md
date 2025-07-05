@@ -1,16 +1,16 @@
 # ESP32 BLE Proximity Server
 
-A framework for developing Bluetooth Low Energy (BLE) proximity-based applications on the ESP32. This project demonstrates secure BLE pairing, device authorization, proximity (RSSI) reporting, and remote control features (e.g., switch open/close) with persistent storage using LittleFS.
+A framework for developing Bluetooth Low Energy (BLE) proximity-based applications on the ESP32. This project demonstrates secure BLE pairing, device authorization, proximity (RSSI) reporting, and remote control features (e.g., switch open/close). It stores device settings on persistent storage using LittleFS.
 
 ## Features
 
 - BLE server with secure pairing (passkey authentication)
 - Device authorization and persistent storage in JSON (LittleFS)
-- Proximity detection via RSSI characteristic
-- Remote control (door open/close/toggle) via BLE characteristic
+- Proximity command which executes if a device is in proximity
+- Proximity notification via RSSI characteristic
+- Remote control. Switch open/close/toggle via BLE characteristic
 - Device management (add, update, remove, set name)
 - Admin features (filesystem format)
-- Debug logging via serial
 
 ## Project Structure
 
@@ -61,7 +61,7 @@ A framework for developing Bluetooth Low Energy (BLE) proximity-based applicatio
 3. **Pair with the ESP32** using a BLE-capable app (e.g., nRF Connect).
 4. **Interact with BLE characteristics:**
    - Read RSSI (proximity)
-   - Send commands to open/close/toggle the door
+   - Send commands to open/close/toggle a switch
    - Set device name, request device JSON, or format filesystem (admin)
 
 ## BLE Characteristics
@@ -69,9 +69,10 @@ A framework for developing Bluetooth Low Energy (BLE) proximity-based applicatio
 ```
 | UUID                                    | Name         | Properties      | Description                      |
 |-----------------------------------------|--------------|----------------|-----------------------------------|
-| `6e400001-b5a3-f393-e0a9-e50e24dcca9e`  | RSSI         | Read/Notify    | Proximity (RSSI) value            |
-| `6e400002-b5a3-f393-e0a9-e50e24dcca9e`  | Door         | Read/Write     | Door control commands             |
-| `6e400003-b5a3-f393-e0a9-e50e24dcca9e`  | Door Status  | Read/Notify    | Door state and notifications      |
+| `1802fdeb-5a0d-47b2-b56c-aea5e5aaf9f5`  | SERVICE_UUID | Service        | Proximity service                 |
+| `6e400001-b5a3-f393-e0a9-e50e24dcca9e`  | RSSI_UUID    | Read/Notify    | Proximity (RSSI) value            |
+| `6e400002-b5a3-f393-e0a9-e50e24dcca9e`  | COMMAND_UUID | Read/Write     | Command control                   |
+| `6e400003-b5a3-f393-e0a9-e50e24dcca9e`  | SWITCH_UUID  | Read/Notify    | Switch state and notifications    |
 ```
 
 ## Device Authorization
