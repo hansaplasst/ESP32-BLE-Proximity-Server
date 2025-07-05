@@ -1,0 +1,52 @@
+#ifndef DEVICE_INFO_H
+#define DEVICE_INFO_H
+
+#pragma once
+
+// https://arduinojson.org/v7/assistant
+#define ARDUINOJSON_SLOT_ID_SIZE 1
+#define ARDUINOJSON_STRING_LENGTH_SIZE 1
+#define ARDUINOJSON_USE_DOUBLE 0
+#define ARDUINOJSON_USE_LONG_LONG 0
+#include <ArduinoJson.h>
+#include <LittleFS.h>
+
+#include <string>
+
+// When updating this struct, don't forget to set default values in ProximityDevice::remove
+struct ProximityData {
+  std::string deviceID = "";                    // Link key for the device
+  std::string name = "unknown";                 // Name of the device
+  std::string mac = "";                         // MAC address of the device
+  bool paired = false;                          // Pairing status: true if paired, false otherwise
+  bool isAdmin = false;                         // Admin status: true if the device is an admin, false otherwise
+  int8_t rssi_threshold = -100;                 // Proximity (RSSI) value. Value will be set by the client on first connection.
+  int16_t momSwitchDelay = 300;                 // Delay in milliseconds for the momOpen / momClose command. Default is 300ms.
+  std::string rssi_command = "momOpen";         // Command to execute if device is in proximity. RSSI >= rssi_threshold.
+  std::string on_disconnect_command = "close";  // Command to execute if device disconnects.
+};
+
+class ProximityDevice {
+ public:
+  ProximityDevice(const char* jsonFileName = "/authorized_devices.json");
+
+  // Device Information
+  ProximityData data;
+
+  bool update();                          // Adds or updates data entry in the JSON file
+  bool remove();                          // deletes data entry from JSON and clears resets the data entry to default
+  bool triggerUpdateJson = false;         // Helper to trigger update in callback functions
+  bool isAuthenticated = false;           // True if device is authenticated, else false
+  bool get(const std::string& deviceID);  // Retrieves device from JSON if exists and updates data struct
+  void setAdmin(bool value);              // set data.isAdmin to value and updates json
+  std::string printJsonFile();            // Prints the contents of json file to INFO (1)
+
+  SemaphoreHandle_t mutex;  // Mutex
+
+ private:
+  const char* fileName;
+  File jsonFile;
+  JsonDocument jsonDocument;
+};
+
+#endif
