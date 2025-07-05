@@ -79,14 +79,14 @@ A framework for developing Bluetooth Low Energy (BLE) proximity-based applicatio
 
 - Devices are authorized and stored in `/authorized_devices.json` on LittleFS.
 - Each device entry includes:
-  - **name**: Default: "unknown"
-  - **mac**: Device MAC address
-  - **paired**: Pairing status. Default: false
-  - **isAdmin**: Admin flag. Default: false
-  - **momSwitchDelay**: Switch delay for momentary switch. Default: `300`ms
-  - **rssi_threshold**: Proximity threshold. A value between 0 and -100. Default: `-100`
-  - **rssi_command**: Command to execute when a device is in proximity. Default: "momOpen"
-  - **on_disconnect_command**: Command to execute when a device is out of reach or disconnected. Default: "close"
+  - **name**: Default: `unknown`
+  - **mac**: Device `MAC Address`
+  - **paired**: Pairing status. Default: `false`
+  - **isAdmin**: Admin flag. Default: `false`
+  - **momSwitchDelay**: Switch delay for momentary switch. Default: `300ms`
+  - **rssi_threshold**: Proximity threshold. A value between `0` and `-100`. Default: `-100`
+  - **rssi_command**: Command to execute when a device is in proximity. Default: `momOpen`
+  - **on_disconnect_command**: Command to execute when a device is out of reach or disconnected. Default: `close`
 
 ## License
 
