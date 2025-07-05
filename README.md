@@ -93,5 +93,3 @@ A framework for developing Bluetooth Low Energy (BLE) proximity-based applicatio
 This project is licensed under the GNU General Public License v3.0 (GPL-3.0).
 
 ---
-
-For more details, see the source code and comments in [src/ble_server.cpp](src/ble_server.cpp) and [include/ble_server.h](include/ble_server.h).
