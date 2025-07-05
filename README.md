@@ -67,7 +67,7 @@ A framework for developing Bluetooth Low Energy (BLE) proximity-based applicatio
 ## BLE Characteristics
 
 ```
-| UUID                                    | Name         | Properties      | Description                      |
+| UUID                                    | Name         | Properties     | Description                       |
 |-----------------------------------------|--------------|----------------|-----------------------------------|
 | `1802fdeb-5a0d-47b2-b56c-aea5e5aaf9f5`  | SERVICE_UUID | Service        | Proximity service                 |
 | `6e400001-b5a3-f393-e0a9-e50e24dcca9e`  | RSSI_UUID    | Read/Notify    | Proximity (RSSI) value            |
@@ -78,7 +78,15 @@ A framework for developing Bluetooth Low Energy (BLE) proximity-based applicatio
 ## Device Authorization
 
 - Devices are authorized and stored in `/authorized_devices.json` on LittleFS.
-- Each device entry includes MAC address, name, pairing status, admin flag, and RSSI.
+- Each device entry includes:
+  - Name (name: default "unknown").
+  - MAC address (mac: device MAC address)
+  - Pairing status (paired: default false)
+  - Admin flag (isAdmin: default false)
+  - Switch delay for momentary switch (momSwitchDelay: default 300ms)
+  - Proximity threshold (rssi_threshold: value between 0 and -100. Default -100)
+  - Command to execute when a device is in proximity (rssi_command: default "momOpen")
+  - Command to execute when a device is out of reach or disconnected (on_disconnect_command: default "close")
 
 ## License
 
