@@ -1,6 +1,6 @@
 # ESP32 BLE Proximity Server
 
-A framework for developing Bluetooth Low Energy (BLE) proximity-based applications on the ESP32. This project demonstrates secure BLE pairing, device authorization, proximity (RSSI) reporting, and remote control features (e.g., door open/close) with persistent storage using LittleFS.
+A framework for developing Bluetooth Low Energy (BLE) proximity-based applications on the ESP32. This project demonstrates secure BLE pairing, device authorization, proximity (RSSI) reporting, and remote control features (e.g., switch open/close) with persistent storage using LittleFS.
 
 ## Features
 
