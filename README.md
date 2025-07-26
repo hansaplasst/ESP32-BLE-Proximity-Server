@@ -54,24 +54,6 @@ A framework for developing Bluetooth Low Energy (BLE) proximity-based applicatio
 4. **Configure settings:**  
    Edit `platformio.ini` or source files as needed for your board.
 
-### Usage
-
-1. **Build and upload** the firmware to your ESP32.
-2. **Open the Serial Monitor** to view debug output.
-3. **Pair with the ESP32** using a BLE-capable app (e.g., nRF Connect).
-4. **Interact with BLE characteristics:**
-   - Read RSSI (proximity) via `RSSI_UUID`
-   - Read Switch state and notifications (via `SWITCH_UUID`)
-   - Send commands to open/close/toggle a switch (via `COMMAND_UUID`)
-     - `open` — Opens the switch.
-     - `close` — Closes the switch.
-     - `momOpen` — Momentarily opens the switch (pulse open).
-     - `momClose` — Momentarily closes the switch (pulse close).
-     - `toggle` — Toggles the switch state.
-     - `setName:<name>` — Sets the device name.
-     - `json` — Returns the list of authorized devices file in JSON (admin only).
-     - `format` — Formats the filesystem (admin only).
-
 ## BLE Characteristics
 
 ```
@@ -82,6 +64,24 @@ A framework for developing Bluetooth Low Energy (BLE) proximity-based applicatio
 | `6e400002-b5a3-f393-e0a9-e50e24dcca9e`  | COMMAND_UUID | Read/Write     | Command control                   |
 | `6e400003-b5a3-f393-e0a9-e50e24dcca9e`  | SWITCH_UUID  | Read/Notify    | Switch state and notifications    |
 ```
+
+### Usage
+
+1. **Build and upload** the firmware to your ESP32.
+2. **Open the Serial Monitor** to view debug output.
+3. **Pair with the ESP32** using a BLE-capable app (e.g., nRF Connect).
+4. **Interact with BLE characteristics:**
+   - Read RSSI (proximity) (via `RSSI_UUID`)
+   - Read Switch state and notifications (via `SWITCH_UUID`)
+   - Send commands to open/close/toggle a switch (via `COMMAND_UUID`)
+     - `open` — Opens the switch.
+     - `close` — Closes the switch.
+     - `momOpen` — Momentarily opens the switch (pulse open).
+     - `momClose` — Momentarily closes the switch (pulse close).
+     - `toggle` — Toggles the switch state.
+     - `setName:<name>` — Sets the device name.
+     - `json` — Returns the list of authorized devices file in JSON (admin only).
+     - `format` — Formats the filesystem (admin only).
 
 ## Device Authorization
 
