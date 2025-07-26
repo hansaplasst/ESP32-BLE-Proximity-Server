@@ -60,9 +60,17 @@ A framework for developing Bluetooth Low Energy (BLE) proximity-based applicatio
 2. **Open the Serial Monitor** to view debug output.
 3. **Pair with the ESP32** using a BLE-capable app (e.g., nRF Connect).
 4. **Interact with BLE characteristics:**
-   - Read RSSI (proximity)
-   - Send commands to open/close/toggle a switch
-   - Set device name, request device JSON, or format filesystem (admin)
+   - Read RSSI (proximity) via `RSSI_UUID`
+   - Send commands to open/close/toggle a switch (via `COMMAND_UUID`)
+   - Read Switch state and notifications (via `SWITCH_UUID`)
+     - `open` — Opens the switch.
+     - `close` — Closes the switch.
+     - `momOpen` — Momentarily opens the switch (pulse open).
+     - `momClose` — Momentarily closes the switch (pulse close).
+     - `toggle` — Toggles the switch state.
+     - `setName:<name>` — Sets the device name.
+     - `json` — Returns the list of authorized devices file in JSON (admin only).
+     - `format` — Formats the filesystem (admin only).
 
 ## BLE Characteristics
 
