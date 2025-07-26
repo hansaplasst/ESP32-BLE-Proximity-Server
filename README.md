@@ -91,7 +91,7 @@ A framework for developing Bluetooth Low Energy (BLE) proximity-based applicatio
   - **mac**: Device `MAC Address`
   - **paired**: Pairing status. Default: `false`
   - **isAdmin**: Admin flag. Default: `false`
-  - **momSwitchDelay**: Switch delay for momentary switch. Default: `300`ms
+  - **momSwitchDelay**: Switch delay for momentary switch (`momOpen`/`momClose`). Default: `300`ms
   - **rssi_threshold**: Proximity threshold. A value between `0` and `-100`. Default: `-100`
   - **rssi_command**: Command to execute when a device is in proximity. Default: `"momOpen"`
   - **on_disconnect_command**: Command to execute when a device is out of reach or disconnected. Default: `"close"`
