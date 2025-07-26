@@ -62,7 +62,6 @@ A framework for developing Bluetooth Low Energy (BLE) proximity-based applicatio
 4. **Interact with BLE characteristics:**
    - Read RSSI (proximity) via `RSSI_UUID`
    - Send commands to open/close/toggle a switch (via `COMMAND_UUID`)
-   - Read Switch state and notifications (via `SWITCH_UUID`)
      - `open` — Opens the switch.
      - `close` — Closes the switch.
      - `momOpen` — Momentarily opens the switch (pulse open).
@@ -71,6 +70,7 @@ A framework for developing Bluetooth Low Energy (BLE) proximity-based applicatio
      - `setName:<name>` — Sets the device name.
      - `json` — Returns the list of authorized devices file in JSON (admin only).
      - `format` — Formats the filesystem (admin only).
+   - Read Switch state and notifications (via `SWITCH_UUID`)
 
 ## BLE Characteristics
 
