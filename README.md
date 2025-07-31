@@ -61,8 +61,8 @@ A framework for developing Bluetooth Low Energy (BLE) proximity-based applicatio
 |-----------------------------------------|--------------|----------------|-----------------------------------|
 | `1802fdeb-5a0d-47b2-b56c-aea5e5aaf9f5`  | SERVICE_UUID | Service        | Proximity service                 |
 | `6e400001-b5a3-f393-e0a9-e50e24dcca9e`  | RSSI_UUID    | Read/Notify    | Proximity (RSSI) value            |
-| `6e400002-b5a3-f393-e0a9-e50e24dcca9e`  | COMMAND_UUID | Read/Write     | Command control                   |
-| `6e400003-b5a3-f393-e0a9-e50e24dcca9e`  | SWITCH_UUID  | Read/Notify    | Switch state and notifications    |
+| `6e400002-b5a3-f393-e0a9-e50e24dcca9e`  | COMMAND_UUID | Read/Write     | Command control and notifications |
+| `6e400003-b5a3-f393-e0a9-e50e24dcca9e`  | SWITCH_UUID  | Read/Notify    | Switch state                      |
 ```
 
 ### Usage
