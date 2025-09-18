@@ -28,6 +28,7 @@ class BLEProximity : public BLEServerCallbacks {
 
   void setProximityThreshold(int8_t rssi);  // Proximity threshold instellen (optioneel)
   void setSwitchState(const std::string& value);
+  void notifySwitch(const char* state);   // <-- core-1 updates the switch characteristic
 
   // Callbacks
   void onConnect(BLEServer* pServer, esp_ble_gatts_cb_param_t* param) override;

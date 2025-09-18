@@ -21,8 +21,9 @@ struct ProximityData {
   bool paired = false;                          // Pairing status: true if paired, false otherwise
   bool isAdmin = false;                         // Admin status: true if the device is an admin, false otherwise
   int8_t rssi_threshold = -100;                 // Proximity (RSSI) value. On bonding the rssi_threshold of the client will be set.
-  int16_t momSwitchDelay = 300;                 // Delay in milliseconds for the momOpen / momClose command. Default is 300ms.
+  int16_t momSwitchDelay = 300;                 // Delay in milliseconds for the momOpen / momClose command. Default is 300ms. Min 10ms, max 30000ms.
   std::string rssi_command = "momOpen";         // Command to execute if device is in proximity. RSSI >= rssi_threshold.
+  int16_t rssi_command_delay = 5;               // Delay in seconds for the rssi_command to repeat if above the threshold. Default is 5 seconds. Min 1 second, max 3600 seconds.
   std::string on_disconnect_command = "close";  // Command to execute if device disconnects or gets out of range.
 };
 
@@ -41,7 +42,8 @@ class ProximityDevice {
   void setAdmin(bool value);              // set data.isAdmin to value and updates json
   std::string printJsonFile();            // Prints the contents of json file to INFO (1)
 
-  SemaphoreHandle_t mutex;  // Mutex
+  SemaphoreHandle_t mutex;             // Mutex
+  uint32_t rssiExecutedTimeStamp = 0;  // Timestamp of last rssi command sent (in millis).
 
  private:
   const char* fileName;

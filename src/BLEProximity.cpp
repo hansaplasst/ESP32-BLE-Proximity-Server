@@ -3,8 +3,58 @@
 #include <dprintf.h>
 #include <mbedtls/sha256.h>
 
-bool switchState = false;
+#include "freertos/FreeRTOS.h"
+#include "freertos/queue.h"
+#include "freertos/task.h"
+
 bool deviceConnected = false;
+
+/**
+ * @struct SwitchMsg
+ * @brief Represents a message for controlling a switch with an optional delay.
+ *
+ * This structure is used to specify the desired state of a switch and the delay
+ * before sending a notification about the state change.
+ *
+ * @var SwitchMsg::target_on
+ *   Indicates the desired state of the switch.
+ *   - true: Switch should be OPEN.
+ *   - false: Switch should be CLOSED.
+ *
+ * @var SwitchMsg::delay_ms
+ *   The delay in milliseconds before sending a notification about the switch state change.
+ */
+struct SwitchMsg {
+  bool target_on;     // true = OPEN, false = CLOSED
+  uint32_t delay_ms;  // wachttijd vóór notify
+};
+
+static QueueHandle_t sSwitchQueue = nullptr;
+static TaskHandle_t sSwitchTask = nullptr;
+extern BLEProximity* proximityServer;
+static bool switchState = false;
+static inline const char* stateToStr(bool on) { return on ? "OPEN" : "CLOSED"; }
+
+static void SwitchNotifyTask(void* arg) {
+  SwitchMsg msg;
+  for (;;) {
+    if (xQueueReceive(sSwitchQueue, &msg, portMAX_DELAY) == pdTRUE) {
+      if (msg.delay_ms > 0) vTaskDelay(pdMS_TO_TICKS(msg.delay_ms));
+
+      // De ENIGE plek die de fysieke staat en globale switchState aanpast:
+      switchState = msg.target_on;
+#ifdef LED_BUILTIN
+      digitalWrite(LED_BUILTIN, switchState ? HIGH : LOW);
+#endif
+
+      if (proximityServer) {
+        // Stuur rSwitchCharacteristic update met actuele staat
+        proximityServer->notifySwitch(stateToStr(switchState));
+      }
+      DPRINTF(1, "Switch applied: %s", stateToStr(switchState));
+    }
+  }
+}
 
 /**
  * @brief Notifies a BLE client of a characteristic value change if notifications are enabled.
@@ -58,10 +108,9 @@ void requestProximity(BLEAddress peerAddress) {
   }
 }
 
-BLEProximity* g_bleProximity = nullptr;
 void gapEventHandler(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t* param) {
-  if (g_bleProximity) {
-    g_bleProximity->handleGAPEvent(event, param);
+  if (proximityServer) {
+    proximityServer->handleGAPEvent(event, param);
   }
 }
 
@@ -83,7 +132,6 @@ BLEProximity::BLEProximity(const char* deviceName) {
   esp_ble_gap_set_security_param(ESP_BLE_SM_SET_RSP_KEY, &rsp_key, sizeof(uint8_t));
   pSecurity->setInitEncryptionKey(ESP_BLE_ENC_KEY_MASK | ESP_BLE_ID_KEY_MASK);
 
-  g_bleProximity = this;
   BLEDevice::setCustomGapHandler(gapEventHandler);
 
   pServer = BLEDevice::createServer();
@@ -122,13 +170,30 @@ BLEProximity::BLEProximity(const char* deviceName) {
   DPRINTF(1, "BLE advertising started\n");
 }
 
+/**
+ * @brief Initializes the BLEProximity service.
+ *
+ * This method performs additional initialization steps required for the BLEProximity service.
+ * It creates a queue for switch messages if it does not already exist, and starts the
+ * SwitchNotifyTask on core 1 (App CPU) if it is not already running.
+ *
+ * The method ensures that the switch queue and notification task are properly set up
+ * before the BLEProximity service begins operation.
+ */
 void BLEProximity::begin() {
-  // Additionele init steps
+  // Additional init steps
+  if (!sSwitchQueue) {
+    sSwitchQueue = xQueueCreate(8, sizeof(SwitchMsg));
+  }
+  if (sSwitchQueue && !sSwitchTask) {
+    xTaskCreatePinnedToCore(SwitchNotifyTask, "SwitchNotifyTask", 4096, nullptr, 5, &sSwitchTask, 1);  // Pin the task on core 1 (App CPU).
+  }
+
   // ProximitySecurity::printBondedDevices();
 }
 
 void BLEProximity::poll() {
-  // Polling taken zoals RSSI meten
+  // Polling tasks. Like RSSI request.
   if (device.isAuthenticated) {
     requestProximity(BLEAddress(device.data.mac));
   }
@@ -138,6 +203,27 @@ void BLEProximity::setProximityThreshold(int8_t rssi) {
   device.data.rssi_threshold = rssi;
 }
 
+void BLEProximity::notifySwitch(const char* state) {
+  notifyChar(rwCharacteristic, state);
+  notifyChar(rSwitchCharacteristic, state);
+}
+
+/**
+ * @brief Sets the switch state based on the provided command string.
+ *
+ * Supported commands:
+ * - "open": Sets the switch to ON.
+ * - "close": Sets the switch to OFF.
+ * - "toggle": Toggles the current switch state.
+ * - "momOpen": Momentarily sets the switch to ON, then OFF after a delay.
+ * - "momClose": Momentarily sets the switch to OFF, then ON after a delay.
+ * - "status": Reports the current switch state.
+ *
+ * Invalid commands are reported via BLE notification.
+ * For momentary actions, any pending switch actions are cleared before enqueuing the new sequence.
+ *
+ * @param value Command string specifying the desired switch action.
+ */
 void BLEProximity::setSwitchState(const std::string& value) {
   if (value != "open" && value != "close" && value != "toggle" &&
       value != "momOpen" && value != "momClose" && value != "status") {
@@ -146,26 +232,48 @@ void BLEProximity::setSwitchState(const std::string& value) {
     return;
   }
 
-  if (value == "open" || value == "momOpen")
-    switchState = true;
-  if (value == "close" || value == "momClose")
-    switchState = false;
-  if (value == "toggle")
-    switchState = !switchState;
+  if (value == "status") {
+    bool state = digitalRead(LED_BUILTIN) == HIGH;
+    notifyChar(rwCharacteristic, stateToStr(state));
+    notifyChar(rSwitchCharacteristic, stateToStr(state));
+    return;
+  }
 
-  std::string switchStateStr = switchState ? "OPEN" : "CLOSED";
-  digitalWrite(LED_BUILTIN, switchState ? HIGH : LOW);
-  notifyChar(rwCharacteristic, switchStateStr.c_str());
-  notifyChar(rSwitchCharacteristic, switchStateStr.c_str());
-  DPRINTF(1, "Switch state: %s", switchStateStr.c_str());
-  if (value == "momOpen" || value == "momClose") {
-    delay(device.data.momSwitchDelay);  // Delay for momOpen/momClose command
-    switchState = !switchState;         // Toggle the switch state after the delay
-    switchStateStr = switchState ? "OPEN" : "CLOSED";
-    digitalWrite(LED_BUILTIN, switchState ? HIGH : LOW);
-    notifyChar(rwCharacteristic, switchStateStr.c_str());
-    notifyChar(rSwitchCharacteristic, switchStateStr.c_str());
-    DPRINTF(1, "Switch state: %s", switchStateStr.c_str());
+  // Helper to enqueue a switch notification for rSwitchCharacteristic
+  auto enqueueSwitch = [&](bool on, uint32_t delay_ms) {
+    if (!sSwitchQueue) return;
+    SwitchMsg m{on, delay_ms};
+    xQueueSendToBack(sSwitchQueue, &m, 0);
+  };
+
+  // Handle state changes
+  bool target = switchState;
+  if (value == "open" || value == "momOpen")
+    target = true;
+  if (value == "close" || value == "momClose")
+    target = false;
+  if (value == "toggle")
+    target = !switchState;
+
+  // notifyChar(rwCharacteristic, stateToStr(target));
+
+  // Non-momentary: direct notify via task
+  if (value == "open" || value == "close" || value == "toggle") {
+    enqueueSwitch(target, 0);
+    return;
+  }
+
+  // Momentary: two-phase notifications (cancel pending first)
+  if (value == "momOpen") {
+    if (sSwitchQueue) xQueueReset(sSwitchQueue);  // clear old sequences
+    enqueueSwitch(true, 0);
+    enqueueSwitch(false, (uint32_t)device.data.momSwitchDelay);
+    DPRINTF(1, "momOpen sequence: %d ms", device.data.momSwitchDelay);
+  } else if (value == "momClose") {
+    if (sSwitchQueue) xQueueReset(sSwitchQueue);
+    enqueueSwitch(false, 0);
+    enqueueSwitch(true, (uint32_t)device.data.momSwitchDelay);
+    DPRINTF(1, "momClose sequence: %d ms", device.data.momSwitchDelay);
   }
 }
 
@@ -183,7 +291,6 @@ void BLEProximity::onDisconnect(BLEServer* pServer, esp_ble_gatts_cb_param_t* pa
   rwCharacteristic->setValue(device.data.on_disconnect_command.c_str());     // Set the command characteristic value
   if (commandCallback) commandCallback->onWrite(rwCharacteristic, nullptr);  // Call onWrite to handle the command
   delay(500);
-  device.isAuthenticated = false;
 
   DPRINTF(1, "Device disconnected (%s), advertising restarted\n", device.data.mac.c_str());
   device = {};  // Reset all fields to default
@@ -225,11 +332,13 @@ void BLEProximity::handleGAPEvent(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_p
             notifyChar(rwCharacteristic, "RSSI updated");
           }
 
-          if (device.data.rssi_command != "" && param->read_rssi_cmpl.rssi >= device.data.rssi_threshold) {
+          if (device.data.rssi_command != "" && param->read_rssi_cmpl.rssi >= device.data.rssi_threshold &&
+              (millis() - device.rssiExecutedTimeStamp >= (uint32_t)device.data.rssi_command_delay * 1000)) {
             DPRINTF(1, "Measured RSSI %d ≥ %d.\n Executing RSSI command: %s",
                     param->read_rssi_cmpl.rssi, device.data.rssi_threshold, device.data.rssi_command.c_str());
             rwCharacteristic->setValue(device.data.rssi_command.c_str());              // Set the command characteristic value
             if (commandCallback) commandCallback->onWrite(rwCharacteristic, nullptr);  // Call onWrite to handle the command
+            device.rssiExecutedTimeStamp = millis();
           }
 
           notifyChar(rProximityCharacteristic, String(param->read_rssi_cmpl.rssi).c_str());
@@ -362,7 +471,7 @@ std::string ProximitySecurity::getHashedPeerKey(esp_bd_addr_t mac) {
     return "";
   }
 
-  // DPRINTF(0, "Peer Key: %s", getHexString(bondKey->pid_key.irk).c_str());  // TODO: Remove. Insecure
+  // DPRINTF(0, "Peer Key: %s", getHexString(bondKey->pid_key.irk).c_str());
   std::string irkStr = keyHash(bondKey->pid_key.irk);
 
   free((void*)bondKey);  // free the copy we allocated in getBondedKey()
@@ -398,7 +507,7 @@ const esp_ble_bond_key_info_t* ProximitySecurity::getBondedKey(esp_bd_addr_t mac
     DPRINTF(2, "No bonded device matches the given MAC.");
   }
 
-  // Kopieer pointer naar heap buffer naar stack-struct
+  // Copy pointer to heap buffer to stack-struct
   esp_ble_bond_key_info_t* keyCopy = nullptr;
   if (result) {
     keyCopy = (esp_ble_bond_key_info_t*)malloc(sizeof(esp_ble_bond_key_info_t));
@@ -408,7 +517,7 @@ const esp_ble_bond_key_info_t* ProximitySecurity::getBondedKey(esp_bd_addr_t mac
   }
 
   free(bondedDevices);
-  return keyCopy;  // moet later worden vrijgegeven door de caller!
+  return keyCopy;  // Don't forget to free this later by the caller!
 }
 
 void ProximitySecurity::printBondedDevices() {
@@ -469,9 +578,13 @@ void CommandCallback::onWrite(BLECharacteristic* pChar, esp_ble_gatts_cb_param_t
   if (value.length() > 0) {
     bool bState = (value == "open" || value == "close" || value == "toggle" ||
                    value == "momOpen" || value == "momClose" || value == "status");
-    bool bSetName = String(value.c_str()).startsWith("name=");
-    bleProx->device.triggerUpdateJson = (value == "update_rssi");
-    bool isValidCommand = (bSetName || bState || bleProx->device.triggerUpdateJson ||
+    bool bSetName = String(value.c_str()).startsWith("name=");          // device name
+    bool bSetMomDel = String(value.c_str()).startsWith("momDel=");      // momentary switch delay
+    bool bSetRssiCmd = String(value.c_str()).startsWith("rssiCmd=");    // RSSI command
+    bool bSetRssiDelay = String(value.c_str()).startsWith("rssiDel=");  // RSSI command delay
+    bool bSetDisconnectCmd = (value == "onDisconnectCmd");              // on disconnect command
+    bleProx->device.triggerUpdateJson = (value == "update_rssi");       // RSSI update on next proximity event
+    bool isValidCommand = (bSetName || bState || bSetMomDel || bSetRssiCmd || bSetRssiDelay || bSetDisconnectCmd || bleProx->device.triggerUpdateJson ||
                            value == "json" || value == "format" || value == "status");
 
     if (!isValidCommand) {
@@ -479,7 +592,7 @@ void CommandCallback::onWrite(BLECharacteristic* pChar, esp_ble_gatts_cb_param_t
       notifyChar(rwCharacteristic, "Invalid command");
       return;
     }
-    // Update the switch state in the device data
+
     if (bState) bleProx->setSwitchState(value);  // Update the switch state according to the command
 
     // Update the device name if the command is "name="
@@ -494,6 +607,69 @@ void CommandCallback::onWrite(BLECharacteristic* pChar, esp_ble_gatts_cb_param_t
         notifyChar(rwCharacteristic, "Invalid name");
         DPRINTF(3, "Invalid name received");
       }
+    }
+
+    if (bSetMomDel) {
+      const char* s = value.c_str() + 7;  // na "momDel="
+      char* endp = nullptr;
+      long ms = strtol(s, &endp, 10);
+
+      if (endp == s) {
+        notifyChar(rwCharacteristic, "Invalid momDel value");
+        DPRINTF(3, "Invalid momDel payload: %s", value.c_str());
+        return;
+      }
+
+      // Clamp naar int16_t en praktische grenzen
+      if (ms < 10) ms = 10;        // minimaal 10 ms om '0' te voorkomen
+      if (ms > 30000) ms = 30000;  // bovengrens 30s binnen int16_t
+
+      bleProx->device.data.momSwitchDelay = static_cast<int16_t>(ms);
+      bleProx->device.update();
+
+      char buf[48];
+      snprintf(buf, sizeof(buf), "momDel=%ld", ms);
+      notifyChar(rwCharacteristic, buf);
+      DPRINTF(1, "momSwitchDelay set to %ld ms", ms);
+    }
+
+    if (bSetRssiCmd) {
+      std::string newCmd = value.substr(8);  // Skip "rssiCmd="
+      bleProx->device.data.rssi_command = newCmd;
+      bleProx->device.update();
+      notifyChar(rwCharacteristic, ("rssiCmd set to: " + newCmd).c_str());
+      DPRINTF(1, "rssiCmd set to: %s", newCmd.c_str());
+    }
+
+    if (bSetRssiDelay) {
+      const char* s = value.c_str() + 8;  // na "rssiDel="
+      char* endp = nullptr;
+      long sec = strtol(s, &endp, 10);
+
+      if (endp == s) {
+        notifyChar(rwCharacteristic, "Invalid rssiDelay value");
+        DPRINTF(3, "Invalid rssiDelay payload: %s", value.c_str());
+        return;
+      }
+
+      // Clamp naar int16_t en praktische grenzen
+      if (sec < 0) sec = 0;        // minimaal 0s
+      if (sec > 3600) sec = 3600;  // bovengrens 1 uur
+
+      bleProx->device.data.rssi_command_delay = static_cast<int16_t>(sec);
+      bleProx->device.update();
+
+      char buf[48];
+      snprintf(buf, sizeof(buf), "rssiDelay=%ld", sec);
+      notifyChar(rwCharacteristic, buf);
+      DPRINTF(1, "rssi_command_delay set to %ld s", sec);
+    }
+
+    if (bSetDisconnectCmd) {
+      bleProx->device.data.on_disconnect_command = value;
+      bleProx->device.update();
+      notifyChar(rwCharacteristic, ("onDisconnectCmd set to: " + value).c_str());
+      DPRINTF(1, "onDisconnectCmd set to: %s", value.c_str());
     }
 
     // Publish the JSON file if requested

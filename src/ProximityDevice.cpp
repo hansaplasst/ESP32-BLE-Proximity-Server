@@ -110,8 +110,10 @@ bool ProximityDevice::update() {
   obj["paired"] = data.paired;
   obj["isAdmin"] = data.isAdmin;
   obj["rssi_threshold"] = data.rssi_threshold;
-  obj["rssi_command"] = data.rssi_command;
   obj["momSwitchDelay"] = data.momSwitchDelay;
+  obj["rssi_command"] = data.rssi_command;
+  obj["rssi_command_delay"] = data.rssi_command_delay;
+  obj["on_disconnect_command"] = data.on_disconnect_command;
 
   // Wegschrijven naar bestand
   jsonFile = LittleFS.open(fileName, "w");
@@ -151,6 +153,7 @@ bool ProximityDevice::remove() {
   data.rssi_threshold = -100;
   data.momSwitchDelay = 300;
   data.rssi_command = "momOpen";
+  data.rssi_command_delay = 5;
   data.on_disconnect_command = "close";
 
   jsonFile = LittleFS.open(fileName, "w");
@@ -181,13 +184,15 @@ bool ProximityDevice::get(const std::string& deviceID) {
   }
 
   data.deviceID = deviceID;
-  data.name = deviceObj["name"] | data.name;                                // Default to "unknown" if not set
-  data.mac = deviceObj["mac"] | data.mac;                                   // Default to empty string if not set
-  data.paired = deviceObj["paired"] | data.paired;                          // Default to false if not set
-  data.isAdmin = deviceObj["isAdmin"] | data.isAdmin;                       // Default to false if not set
-  data.rssi_threshold = deviceObj["rssi_threshold"] | data.rssi_threshold;  // Default to -100 if not set
-  data.rssi_command = deviceObj["rssiCommand"] | data.rssi_command;         // Default to "momOpen" if not set
-  data.momSwitchDelay = deviceObj["momSwitchDelay"] | data.momSwitchDelay;  // Default to 300ms if not set
+  data.name = deviceObj["name"] | data.name;                                                     // Default to "unknown" if not set
+  data.mac = deviceObj["mac"] | data.mac;                                                        // Default to empty string if not set
+  data.paired = deviceObj["paired"] | data.paired;                                               // Default to false if not set
+  data.isAdmin = deviceObj["isAdmin"] | data.isAdmin;                                            // Default to false if not set
+  data.rssi_threshold = deviceObj["rssi_threshold"] | data.rssi_threshold;                       // Default to -100 if not set
+  data.momSwitchDelay = deviceObj["momSwitchDelay"] | data.momSwitchDelay;                       // Default to 300ms if not set
+  data.rssi_command = deviceObj["rssiCommand"] | data.rssi_command;                              // Default to "momOpen" if not set
+  data.rssi_command_delay = deviceObj["rssi_command_delay"] | data.rssi_command_delay;           // Default to 5 seconds if not set
+  data.on_disconnect_command = deviceObj["on_disconnect_command"] | data.on_disconnect_command;  // Default to "close" if not set
 
   DPRINTF(0, "Device found: %s (%s)", data.name.c_str(), data.mac.c_str());
   return true;
