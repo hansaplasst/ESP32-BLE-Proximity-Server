@@ -583,7 +583,7 @@ void CommandCallback::onWrite(BLECharacteristic* pChar, esp_ble_gatts_cb_param_t
     bool bSetRssiCmd = String(value.c_str()).startsWith("rssiCmd=");                // RSSI command
     bool bSetRssiDelay = String(value.c_str()).startsWith("rssiDelay=");            // RSSI command delay
     bool bSetDisconnectCmd = String(value.c_str()).startsWith("onDisconnectCmd=");  // on disconnect command
-    bleProx->device.triggerUpdateJson = (value == "update_rssi");                   // RSSI update on next proximity event
+    bleProx->device.triggerUpdateJson = (value == "rssiUpdate");                    // RSSI update on next proximity event
     bool isValidCommand = (bSetName || bState || bSetMomDelay || bSetRssiCmd || bSetRssiDelay || bSetDisconnectCmd || bleProx->device.triggerUpdateJson ||
                            value == "json" || value == "format" || value == "status");
 

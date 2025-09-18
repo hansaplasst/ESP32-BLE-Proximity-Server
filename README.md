@@ -89,7 +89,7 @@ A framework for developing Bluetooth Low Energy (BLE) proximity-based applicatio
    - Send command to configure `momOpen`/`momClose` commands (via `COMMAND_UUID`)
      - `momDelay=<ms>` — Sets delay (ms) for the `momOpen`/`momClose` commands (min 10ms, max 30s, default: 300ms)
    - Send commands to configure Proximity parameters (via `COMMAND_UUID`)
-     - `update_rssi` — Command to update Proximity threshold. Place device within range of the server then send `update_rssi`
+     - `rssiUpdate` — Command to update Proximity threshold. Place device within range of the server then send `rssiUpdate`
      - `rssiCmd=<open/close/momOpen/momClose/toggle>` — Sets the command to execute when RSSI above threshold
      - `rssiDelay=<sec>` — Sets delay (s) for `rssiCmd` to repeat when above threshold (min 1s, max 3600s, default: 5 seconds)
    - Send command to execute on disconnect (via `COMMAND_UUID`)
