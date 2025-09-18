@@ -87,11 +87,11 @@ A framework for developing Bluetooth Low Energy (BLE) proximity-based applicatio
      - `toggle` — Toggles the switch state.
      - `status` — Read switch state (via `SWITCH_UUID`).
    - Send command to configure `momOpen`/`momClose` commands (via `COMMAND_UUID`)
-     - `momDel=<ms>` — Sets delay (ms) for the `momOpen`/`momClose` commands (min 10ms, max 30000ms, default: 300ms)
+     - `momDelay=<ms>` — Sets delay (ms) for the `momOpen`/`momClose` commands (min 10ms, max 30000ms, default: 300ms)
    - Send commands to configure Proximity parameters (via `COMMAND_UUID`)
      - `update_rssi` — Command to update Proximity threshold. Place device within range of the server then send `update_rssi`
      - `rssiCmd=<open/close/momOpen/momClose/toggle>` — Sets the command to execute when RSSI above threshold
-     - `rssiDel=<sec>` — Sets delay (s) for `rssiCmd` to repeat when above threshold (min 1s, max 3600s, default: 5 seconds)
+     - `rssiDelay=<sec>` — Sets delay (s) for `rssiCmd` to repeat when above threshold (min 1s, max 3600s, default: 5 seconds)
    - Send command to execute on disconnect (via `COMMAND_UUID`)
      - `onDisconnectCmd=<open/close/momOpen/momClose/toggle>` — Sets command to execute when device is disconnect/out-of-range
    - Other `COMMAND_UUID` commands:

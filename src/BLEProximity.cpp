@@ -578,13 +578,13 @@ void CommandCallback::onWrite(BLECharacteristic* pChar, esp_ble_gatts_cb_param_t
   if (value.length() > 0) {
     bool bState = (value == "open" || value == "close" || value == "toggle" ||
                    value == "momOpen" || value == "momClose" || value == "status");
-    bool bSetName = String(value.c_str()).startsWith("name=");          // device name
-    bool bSetMomDel = String(value.c_str()).startsWith("momDel=");      // momentary switch delay
-    bool bSetRssiCmd = String(value.c_str()).startsWith("rssiCmd=");    // RSSI command
-    bool bSetRssiDelay = String(value.c_str()).startsWith("rssiDel=");  // RSSI command delay
-    bool bSetDisconnectCmd = (value == "onDisconnectCmd");              // on disconnect command
-    bleProx->device.triggerUpdateJson = (value == "update_rssi");       // RSSI update on next proximity event
-    bool isValidCommand = (bSetName || bState || bSetMomDel || bSetRssiCmd || bSetRssiDelay || bSetDisconnectCmd || bleProx->device.triggerUpdateJson ||
+    bool bSetName = String(value.c_str()).startsWith("name=");                      // device name
+    bool bSetMomDelay = String(value.c_str()).startsWith("momDelay=");              // momentary switch delay
+    bool bSetRssiCmd = String(value.c_str()).startsWith("rssiCmd=");                // RSSI command
+    bool bSetRssiDelay = String(value.c_str()).startsWith("rssiDelay=");            // RSSI command delay
+    bool bSetDisconnectCmd = String(value.c_str()).startsWith("onDisconnectCmd=");  // on disconnect command
+    bleProx->device.triggerUpdateJson = (value == "update_rssi");                   // RSSI update on next proximity event
+    bool isValidCommand = (bSetName || bState || bSetMomDelay || bSetRssiCmd || bSetRssiDelay || bSetDisconnectCmd || bleProx->device.triggerUpdateJson ||
                            value == "json" || value == "format" || value == "status");
 
     if (!isValidCommand) {
@@ -609,13 +609,13 @@ void CommandCallback::onWrite(BLECharacteristic* pChar, esp_ble_gatts_cb_param_t
       }
     }
 
-    if (bSetMomDel) {
-      const char* s = value.c_str() + 7;  // na "momDel="
+    if (bSetMomDelay) {
+      const char* s = value.c_str() + 9;  // na "momDelay="
       char* endp = nullptr;
       long ms = strtol(s, &endp, 10);
 
       if (endp == s) {
-        notifyChar(rwCharacteristic, "Invalid momDel value");
+        notifyChar(rwCharacteristic, "Invalid momDelay value");
         DPRINTF(3, "Invalid momDel payload: %s", value.c_str());
         return;
       }
@@ -642,7 +642,7 @@ void CommandCallback::onWrite(BLECharacteristic* pChar, esp_ble_gatts_cb_param_t
     }
 
     if (bSetRssiDelay) {
-      const char* s = value.c_str() + 8;  // na "rssiDel="
+      const char* s = value.c_str() + 10;  // na "rssiDelay="
       char* endp = nullptr;
       long sec = strtol(s, &endp, 10);
 
@@ -666,10 +666,11 @@ void CommandCallback::onWrite(BLECharacteristic* pChar, esp_ble_gatts_cb_param_t
     }
 
     if (bSetDisconnectCmd) {
-      bleProx->device.data.on_disconnect_command = value;
+      std::string newCmd = value.substr(16);  // Skip "onDisconnectCmd="
+      bleProx->device.data.on_disconnect_command = newCmd;
       bleProx->device.update();
-      notifyChar(rwCharacteristic, ("onDisconnectCmd set to: " + value).c_str());
-      DPRINTF(1, "onDisconnectCmd set to: %s", value.c_str());
+      notifyChar(rwCharacteristic, ("onDisconnectCmd set to: " + newCmd).c_str());
+      DPRINTF(1, "onDisconnectCmd set to: %s", newCmd.c_str());
     }
 
     // Publish the JSON file if requested
