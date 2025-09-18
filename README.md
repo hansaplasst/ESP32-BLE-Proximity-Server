@@ -9,9 +9,9 @@ A framework for developing Bluetooth Low Energy (BLE) proximity-based applicatio
 - Real-time Proximity notification via RSSI characteristic (`RSSI_UUID`)
 - Real-time Switch notification via RSSI characteristic (`SWITCH_UUID`)
 - Remote control: switch `open`/`close`/`toggle`/`momOpen`/`momClose` via BLE characteristic (`COMMAND_UUID`)
-- Configurable `momOpen`/`momClose` delay (`momDel`), Delay in ms between ON and OFF.
+- Configurable `momOpen`/`momClose` delay (`momDelay`), Delay in ms between ON and OFF.
 - Proximity command execution when a device is in range (execute `rssiCmd` when `rssi_threshold` is reached)
-- Configurable `rssiCmd` delay (`rssi_command_delay`). Time in seconds to repeat `rssiCmd` when in device is range.
+- Configurable `rssiCmd` delay (`rssiDelay`). Time in seconds to repeat `rssiCmd` when in device is range.
 - Automatic command execution on disconnect or out-of-range (`onDisconnectCmd`)
 - Device management: add, update, remove, set name, set proximity command, set proximity delay, set momOpen/momClose delay
 - Admin features: filesystem format, retrieve device list as JSON
