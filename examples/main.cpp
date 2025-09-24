@@ -1,4 +1,5 @@
 #include <Arduino.h>
+// #include <BleKeyboard.h>
 #include <dprintf.h>
 
 #include "BLEProximity.h"
@@ -13,6 +14,7 @@ void setup() {
   while (!Serial) {
     ;  // Wait for serial port to connect. Needed for native USB
   }
+
   delay(5000);
   DPRINTF(1, "Setup started");
   Serial.setDebugOutput(true);
@@ -31,12 +33,14 @@ void setup() {
 }
 
 void loop() {
-  static bool adminSet = true;  // TODO: Remove this after testing
+  // TODO: Remove this after testing
+  // static bool adminSet = true;
+  // if (proximityServer->device.isAuthenticated && adminSet) {
+  //   proximityServer->device.setAdmin(adminSet);
+  //   adminSet = false;
+  // }
+
   proximityServer->poll();
-  if (proximityServer->device.isAuthenticated && adminSet) {
-    proximityServer->device.setAdmin(adminSet);
-    adminSet = false;
-  }
 
   delay(500);
 }

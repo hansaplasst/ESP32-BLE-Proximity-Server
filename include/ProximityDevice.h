@@ -19,6 +19,7 @@ struct ProximityData {
   std::string name = "unknown";                 // Name of the device
   std::string mac = "";                         // MAC address of the device
   bool paired = false;                          // Pairing status: true if paired, false otherwise
+  bool isBlocked = false;                       // Blocked status: true if the device is blocked, false otherwise
   bool isAdmin = false;                         // Admin status: true if the device is an admin, false otherwise
   int8_t rssi_threshold = -100;                 // Proximity (RSSI) value. On bonding the rssi_threshold of the client will be set.
   int16_t momSwitchDelay = 300;                 // Delay in milliseconds for the momOpen / momClose command. Default is 300ms. Min 10ms, max 30000ms.

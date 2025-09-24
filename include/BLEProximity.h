@@ -28,7 +28,7 @@ class BLEProximity : public BLEServerCallbacks {
 
   void setProximityThreshold(int8_t rssi);  // Proximity threshold instellen (optioneel)
   void setSwitchState(const std::string& value);
-  void notifySwitch(const char* state);   // <-- core-1 updates the switch characteristic
+  void notifySwitch(const char* state);  // <-- core-1 updates the switch characteristic
 
   // Callbacks
   void onConnect(BLEServer* pServer, esp_ble_gatts_cb_param_t* param) override;
@@ -58,7 +58,7 @@ class ProximitySecurity : public BLESecurityCallbacks {
 
   static std::string keyHash(const esp_bt_octet16_t& key);
   static std::string getHexString(const esp_bt_octet16_t& value);
-  static std::string getHashedPeerKey(esp_bd_addr_t mac);  // TODO: Als geen bugs meer, dan rename to: getHashedPeerKey
+  static std::string getHashedPeerKey(esp_bd_addr_t mac);
   static void printBondedDevices();
   static void removeBondedDevices();
 

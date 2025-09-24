@@ -108,6 +108,7 @@ bool ProximityDevice::update() {
   obj["name"] = data.name;
   obj["mac"] = data.mac;
   obj["paired"] = data.paired;
+  obj["isBlocked"] = data.isBlocked;
   obj["isAdmin"] = data.isAdmin;
   obj["rssi_threshold"] = data.rssi_threshold;
   obj["momSwitchDelay"] = data.momSwitchDelay;
@@ -149,6 +150,7 @@ bool ProximityDevice::remove() {
   data.name = "unknown";
   data.mac.clear();
   data.paired = false;
+  data.isBlocked = false;
   data.isAdmin = false;
   data.rssi_threshold = -100;
   data.momSwitchDelay = 300;
@@ -187,6 +189,7 @@ bool ProximityDevice::get(const std::string& deviceID) {
   data.name = deviceObj["name"] | data.name;                                                     // Default to "unknown" if not set
   data.mac = deviceObj["mac"] | data.mac;                                                        // Default to empty string if not set
   data.paired = deviceObj["paired"] | data.paired;                                               // Default to false if not set
+  data.isBlocked = deviceObj["isBlocked"] | data.isBlocked;                                      // Default to false if not set
   data.isAdmin = deviceObj["isAdmin"] | data.isAdmin;                                            // Default to false if not set
   data.rssi_threshold = deviceObj["rssi_threshold"] | data.rssi_threshold;                       // Default to -100 if not set
   data.momSwitchDelay = deviceObj["momSwitchDelay"] | data.momSwitchDelay;                       // Default to 300ms if not set

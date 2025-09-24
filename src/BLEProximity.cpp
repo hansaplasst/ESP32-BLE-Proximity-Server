@@ -26,7 +26,7 @@ bool deviceConnected = false;
  */
 struct SwitchMsg {
   bool target_on;     // true = OPEN, false = CLOSED
-  uint32_t delay_ms;  // wachttijd vóór notify
+  uint32_t delay_ms;  // delay before notify
 };
 
 static QueueHandle_t sSwitchQueue = nullptr;
@@ -41,14 +41,14 @@ static void SwitchNotifyTask(void* arg) {
     if (xQueueReceive(sSwitchQueue, &msg, portMAX_DELAY) == pdTRUE) {
       if (msg.delay_ms > 0) vTaskDelay(pdMS_TO_TICKS(msg.delay_ms));
 
-      // De ENIGE plek die de fysieke staat en globale switchState aanpast:
+      // The ONLY place that modifies the physical state and global switchState:
       switchState = msg.target_on;
 #ifdef LED_BUILTIN
       digitalWrite(LED_BUILTIN, switchState ? HIGH : LOW);
 #endif
 
       if (proximityServer) {
-        // Stuur rSwitchCharacteristic update met actuele staat
+        // Send rSwitchCharacteristic update with current state
         proximityServer->notifySwitch(stateToStr(switchState));
       }
       DPRINTF(1, "Switch applied: %s", stateToStr(switchState));
@@ -315,7 +315,7 @@ void BLEProximity::handleGAPEvent(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_p
         if (xSemaphoreTake(device.mutex, portMAX_DELAY) == pdTRUE) {
           // BEGIN CRITICAL SECTION
           std::string macStr = BLEAddress(param->read_rssi_cmpl.remote_addr).toString();
-          DPRINTF(1, "RSSI %s\t%d dBm", macStr.c_str(), param->read_rssi_cmpl.rssi);
+          DPRINTF(0, "RSSI %s\t%d dBm", macStr.c_str(), param->read_rssi_cmpl.rssi);
 
           if (device.data.mac != macStr) {
             DPRINTF(3, "ProximityDevice MAC mismatch: expected %s, got %s", device.data.mac.c_str(), macStr.c_str());
@@ -363,7 +363,6 @@ uint32_t ProximitySecurity::onPassKeyRequest() {
   uint32_t currentPasskey = random(100000, 999999);
   DPRINTF(1, "Generated passkey: %06u", currentPasskey);
 
-  // TODO: In web portal laten zien
   return currentPasskey;
 }
 
@@ -385,11 +384,19 @@ void ProximitySecurity::onAuthenticationComplete(esp_ble_auth_cmpl_t cmpl) {
   DPRINTF(0, "onAuthenticationComplete: %s", cmpl.success ? "Success" : "Failure");
   device.isAuthenticated = cmpl.success;
   std::string macStr = BLEAddress(cmpl.bd_addr).toString();
+
+  if (device.data.isBlocked) return;  // Ignore blocked devices
+
   if (device.isAuthenticated) {
     DPRINTF(1, "Authentication successful: %s", macStr.c_str());
     // printBondedDevices();
     std::string hashedKey = getHashedPeerKey(cmpl.bd_addr);
-    DPRINTF(1, "Mac %s Peer key: %s", macStr.c_str(), hashedKey.c_str());
+    if (hashedKey == "") {
+      DPRINTF(2, "No bonded key found for device: %s", macStr.c_str());
+      return;
+    }
+    // TODO: do not log hashed key in production for security reasons
+    // DPRINTF(0, "Mac %s Peer key: %s", macStr.c_str(), hashedKey.c_str());
     if (!device.get(hashedKey)) {
       DPRINTF(1, "Device not found in JSON, creating new device");
       device.data.deviceID = hashedKey;
@@ -401,20 +408,27 @@ void ProximitySecurity::onAuthenticationComplete(esp_ble_auth_cmpl_t cmpl) {
     } else {
       DPRINTF(0,
               "Device retrieved from JSON:\n"
+              "    device.data.deviceID:\t***************\n"
               "    device.data.name:\t\t%s\n"
               "    device.data.mac:\t\t%s\n"
               "    device.data.paired:\t\t%s\n"
+              "    device.data.isBlocked:\t%s\n"
               "    device.data.isAdmin:\t%s\n"
               "    device.data.rssi_threshold:\t%d\n"
+              "    device.data.momSwitchDelay:\t%d\n"
               "    device.data.rssi_command:\t%s\n"
-              "    device.data.momSwitchDelay:\t%d",
+              "    device.data.rssi_command_delay:\t%d\n"
+              "    device.data.on_disconnect_command:\t%s",
               device.data.name.c_str(),
               device.data.mac.c_str(),
               device.data.paired ? "true" : "false",
+              device.data.isBlocked ? "true" : "false",
               device.data.isAdmin ? "true" : "false",
               device.data.rssi_threshold,
+              device.data.momSwitchDelay,
               device.data.rssi_command.c_str(),
-              device.data.momSwitchDelay);
+              device.data.rssi_command_delay,
+              device.data.on_disconnect_command.c_str());
       if (device.data.mac != macStr) {
         DPRINTF(1, "MAC address updated: %s -> %s", device.data.mac.c_str(), macStr.c_str());
         device.data.mac = macStr;  // Update MAC address if it has changed
@@ -569,6 +583,11 @@ void CommandCallback::onWrite(BLECharacteristic* pChar, esp_ble_gatts_cb_param_t
   DPRINTF(0, "onWrite()");
   if (!bleProx->device.data.paired) {
     DPRINTF(3, "Illegal write attempt: device not paired");
+    return;
+  }
+
+  if (bleProx->device.data.isBlocked) {
+    DPRINTF(3, "Illegal write attempt: device is blocked");
     return;
   }
 
