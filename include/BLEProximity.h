@@ -61,6 +61,7 @@ class ProximitySecurity : public BLESecurityCallbacks {
   static std::string getHashedPeerKey(esp_bd_addr_t mac);
   static void printBondedDevices();
   static void removeBondedDevices();
+  static void removeBondedDevice(esp_bd_addr_t mac);
 
  private:
   ProximityDevice& device;

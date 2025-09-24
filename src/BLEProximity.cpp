@@ -35,6 +35,16 @@ extern BLEProximity* proximityServer;
 static bool switchState = false;
 static inline const char* stateToStr(bool on) { return on ? "OPEN" : "CLOSED"; }
 
+/**
+ * @brief Task function to process switch state change messages from a queue.
+ *
+ * This function runs in an infinite loop, waiting for messages on the `sSwitchQueue`.
+ * When a message is received, it applies the specified delay (if any) and updates
+ * the physical state of the switch. It also notifies connected BLE clients of the
+ * new switch state using the `notifySwitch` method of the `proximityServer`.
+ *
+ * @param arg Pointer to task arguments (not used).
+ */
 static void SwitchNotifyTask(void* arg) {
   SwitchMsg msg;
   for (;;) {
@@ -114,6 +124,15 @@ void gapEventHandler(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t* param
   }
 }
 
+/**
+ * @brief Constructs a BLEProximity object and initializes the BLE server and services.
+ *
+ * This constructor initializes the BLE device with the specified device name, sets up
+ * security parameters, creates a BLE server, and defines the necessary services and
+ * characteristics for proximity detection. It also starts advertising the BLE service.
+ *
+ * @param deviceName The name of the BLE device (default is "BLE Proximity Server").
+ */
 BLEProximity::BLEProximity(const char* deviceName) {
   DPRINTF(0, "BLEProximity(%s)", deviceName);
 
@@ -192,6 +211,14 @@ void BLEProximity::begin() {
   // ProximitySecurity::printBondedDevices();
 }
 
+/**
+ * @brief Polling method for the BLEProximity service.
+ *
+ * This method is intended to be called periodically to perform polling tasks related
+ * to the BLEProximity service. Specifically, it checks if the device is authenticated
+ * and, if so, requests the RSSI (Received Signal Strength Indicator) value from the
+ * connected BLE device to monitor proximity.
+ */
 void BLEProximity::poll() {
   // Polling tasks. Like RSSI request.
   if (device.isAuthenticated) {
@@ -199,10 +226,30 @@ void BLEProximity::poll() {
   }
 }
 
+/**
+ * @brief Sets the proximity RSSI threshold for the device.
+ *
+ * This method updates the `rssi_threshold` field in the `device.data` structure
+ * to the specified RSSI value. The RSSI threshold is used to determine proximity
+ * events based on the received signal strength indicator (RSSI) from the connected
+ * BLE device.
+ *
+ * @param rssi The RSSI threshold value to set (in dBm).
+ */
 void BLEProximity::setProximityThreshold(int8_t rssi) {
   device.data.rssi_threshold = rssi;
 }
 
+/**
+ * @brief Notifies connected BLE clients of the current switch state.
+ *
+ * This method sends notifications to connected BLE clients for both the command
+ * characteristic (`rwCharacteristic`) and the switch characteristic (`rSwitchCharacteristic`)
+ * with the provided switch state value. It uses the `notifyChar` helper function to
+ * perform the notifications.
+ *
+ * @param state The current state of the switch, represented as a string ("OPEN" or "CLOSED").
+ */
 void BLEProximity::notifySwitch(const char* state) {
   notifyChar(rwCharacteristic, state);
   notifyChar(rSwitchCharacteristic, state);
@@ -277,6 +324,16 @@ void BLEProximity::setSwitchState(const std::string& value) {
   }
 }
 
+/**
+ * @brief Callback invoked when a BLE client connects to the server.
+ *
+ * This method handles the connection event by updating the device state and logging
+ * the MAC address of the connected device. It sets the `deviceConnected` flag to true
+ * and updates the `device.data.mac` field with the MAC address of the connected client.
+ *
+ * @param pServer Pointer to the BLEServer instance that received the connection.
+ * @param param Pointer to the parameters associated with the connection event.
+ */
 void BLEProximity::onConnect(BLEServer* pServer, esp_ble_gatts_cb_param_t* param) {
   DPRINTF(0, "onConnect");
   device.data.mac = BLEAddress(param->connect.remote_bda).toString();
@@ -284,6 +341,17 @@ void BLEProximity::onConnect(BLEServer* pServer, esp_ble_gatts_cb_param_t* param
   deviceConnected = true;
 }
 
+/**
+ * @brief Callback invoked when a BLE client disconnects from the server.
+ *
+ * This method handles the disconnection event by resetting the device state,
+ * executing any configured disconnection commands, and restarting BLE advertising
+ * to allow new connections. It also logs the disconnection event and the MAC address
+ * of the disconnected device.
+ *
+ * @param pServer Pointer to the BLEServer instance that received the disconnection.
+ * @param param Pointer to the parameters associated with the disconnection event.
+ */
 void BLEProximity::onDisconnect(BLEServer* pServer, esp_ble_gatts_cb_param_t* param) {
   DPRINTF(0, "onDisconnect()");
   deviceConnected = false;
@@ -380,6 +448,17 @@ bool ProximitySecurity::onSecurityRequest() {
   return true;
 }
 
+/**
+ * @brief Callback invoked when the authentication process is completed.
+ *
+ * This method handles the completion of the authentication process with a BLE peer device.
+ * It checks if the authentication was successful and updates the device state accordingly.
+ * If the device is authenticated, it retrieves or creates the device entry in the JSON storage,
+ * updates its MAC address if necessary, and triggers an RSSI request.
+ * If authentication fails, it restarts BLE advertising to allow new connections.
+ *
+ * @param cmpl The authentication completion parameters containing status and peer address.
+ */
 void ProximitySecurity::onAuthenticationComplete(esp_ble_auth_cmpl_t cmpl) {
   DPRINTF(0, "onAuthenticationComplete: %s", cmpl.success ? "Success" : "Failure");
   device.isAuthenticated = cmpl.success;
@@ -467,6 +546,15 @@ std::string ProximitySecurity::keyHash(const esp_bt_octet16_t& key) {
   return std::string(hex);
 }
 
+/**
+ * @brief Converts a 16-byte octet array to its hexadecimal string representation.
+ *
+ * This function takes a 16-byte octet array (esp_bt_octet16_t) and converts it to a
+ * hexadecimal string representation. Each byte is represented by two hexadecimal characters.
+ *
+ * @param value The 16-byte octet array to convert.
+ * @return std::string The hexadecimal string representation of the octet array.
+ */
 std::string ProximitySecurity::getHexString(const esp_bt_octet16_t& value) {
   char hex[33];  // 16 bytes * 2 hex digits + 1 null terminator
 
@@ -478,6 +566,16 @@ std::string ProximitySecurity::getHexString(const esp_bt_octet16_t& value) {
   return std::string(hex);
 }
 
+/**
+ * @brief Retrieves the hashed peer key (IRK) for a bonded BLE device based on its MAC address.
+ *
+ * This method looks up the bonded key information for the specified MAC address and computes
+ * the SHA-256 hash of the Identity Resolving Key (IRK) associated with that device. The hashed
+ * IRK is returned as a hexadecimal string. If no bonded key is found, an empty string is returned.
+ *
+ * @param mac The MAC address of the bonded device (of type esp_bd_addr_t).
+ * @return std::string The SHA-256 hash of the device's IRK as a hexadecimal string, or an empty string if not found.
+ */
 std::string ProximitySecurity::getHashedPeerKey(esp_bd_addr_t mac) {
   DPRINTF(0, "ProximitySecurity::getHashedPeerKey(%s)", BLEAddress(mac).toString().c_str());
   const esp_ble_bond_key_info_t* bondKey = getBondedKey(mac);
@@ -492,6 +590,17 @@ std::string ProximitySecurity::getHashedPeerKey(esp_bd_addr_t mac) {
   return irkStr;
 }
 
+/**
+ * @brief Retrieves the bonded key information for a specific BLE device based on its MAC address.
+ *
+ * This method searches through the list of bonded devices to find the one that matches the provided MAC address.
+ * If a match is found, it returns a pointer to a copy of the bonded key information. The caller is responsible
+ * for freeing the returned pointer.
+ *
+ * @param mac The MAC address of the bonded device to search for (of type esp_bd_addr_t).
+ * @return const esp_ble_bond_key_info_t* Pointer to a copy of the bonded key information if found, nullptr otherwise.
+ *                                        The caller must free this pointer when done.
+ */
 const esp_ble_bond_key_info_t* ProximitySecurity::getBondedKey(esp_bd_addr_t mac) {
   DPRINTF(0, "ProximitySecurity::getBondedKey(%s)", BLEAddress(mac).toString().c_str());
   int pairedDevices = esp_ble_get_bond_device_num();
@@ -534,6 +643,13 @@ const esp_ble_bond_key_info_t* ProximitySecurity::getBondedKey(esp_bd_addr_t mac
   return keyCopy;  // Don't forget to free this later by the caller!
 }
 
+/**
+ * @brief Prints the list of bonded BLE devices to the debug output.
+ *
+ * This method retrieves the list of bonded devices using the ESP-IDF function `esp_ble_get_bond_device_list`
+ * and prints their MAC addresses to the debug output. It is useful for debugging and verifying
+ * which devices are currently bonded with the BLE server.
+ */
 void ProximitySecurity::printBondedDevices() {
   DPRINTF(0, "ProximitySecurity::printBondedDevices()");
   int wPairedDevices = esp_ble_get_bond_device_num();
@@ -550,6 +666,13 @@ void ProximitySecurity::printBondedDevices() {
   }
 }
 
+/**
+ * @brief Removes all bonded devices from the BLE bond list.
+ *
+ * This method retrieves the list of currently bonded devices and removes each one
+ * using the ESP-IDF function `esp_ble_remove_bond_device`. It logs the MAC addresses
+ * of the removed devices for reference.
+ */
 void ProximitySecurity::removeBondedDevices() {
   DPRINTF(0, "ProximitySecurity::removeBondedDevices()");
   int wPairedDevices = esp_ble_get_bond_device_num();
@@ -565,6 +688,19 @@ void ProximitySecurity::removeBondedDevices() {
       free(bondedDevices);
     }
   }
+}
+
+/**
+ * @brief Removes a bonded device from the BLE bond list based on its MAC address.
+ *
+ * This method takes a MAC address as input and removes the corresponding bonded device
+ * from the BLE bond list using the ESP-IDF function `esp_ble_remove_bond_device`.
+ *
+ * @param mac The MAC address of the bonded device to be removed (of type esp_bd_addr_t).
+ */
+void ProximitySecurity::removeBondedDevice(esp_bd_addr_t mac) {
+  DPRINTF(0, "ProximitySecurity::removeBondedDevice(%s)", BLEAddress(mac).toString().c_str());
+  esp_ble_remove_bond_device(mac);
 }
 
 /**
