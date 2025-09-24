@@ -34,6 +34,7 @@ class BLEProximity : public BLEServerCallbacks {
   void onConnect(BLEServer* pServer, esp_ble_gatts_cb_param_t* param) override;
   void onDisconnect(BLEServer* pServer, esp_ble_gatts_cb_param_t* param) override;
   void handleGAPEvent(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t* param);
+  void disconnectAll();
 
   ProximityDevice device;
 
