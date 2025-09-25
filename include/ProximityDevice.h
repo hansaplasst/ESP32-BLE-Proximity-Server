@@ -4,7 +4,9 @@
 #pragma once
 
 // https://arduinojson.org/v7/assistant
-#define ARDUINOJSON_SLOT_ID_SIZE 1
+#ifndef ARDUINOJSON_SLOT_ID_SIZE
+  #define ARDUINOJSON_SLOT_ID_SIZE 1
+#endif
 #define ARDUINOJSON_STRING_LENGTH_SIZE 1
 #define ARDUINOJSON_USE_DOUBLE 0
 #define ARDUINOJSON_USE_LONG_LONG 0
