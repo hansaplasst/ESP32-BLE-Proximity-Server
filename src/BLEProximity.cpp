@@ -320,12 +320,12 @@ void BLEProximity::setSwitchState(const std::string& value) {
     if (sSwitchQueue) xQueueReset(sSwitchQueue);  // clear old sequences
     enqueueSwitch(true, 0);
     enqueueSwitch(false, (uint32_t)device.data.momSwitchDelay);
-    DPRINTF(1, "momOpen sequence: %d ms", device.data.momSwitchDelay);
+    DPRINTF(0, "momOpen sequence: %d ms", device.data.momSwitchDelay);
   } else if (value == "momClose") {
     if (sSwitchQueue) xQueueReset(sSwitchQueue);
     enqueueSwitch(false, 0);
     enqueueSwitch(true, (uint32_t)device.data.momSwitchDelay);
-    DPRINTF(1, "momClose sequence: %d ms", device.data.momSwitchDelay);
+    DPRINTF(0, "momClose sequence: %d ms", device.data.momSwitchDelay);
   }
 }
 
