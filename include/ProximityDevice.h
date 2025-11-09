@@ -22,7 +22,12 @@
 
 #include <string>
 
-// When updating this struct, don't forget to set default values in ProximityDevice::remove
+/**
+ * When updating this struct, don't forget to set values in:
+ *    ProximityDevice::update
+ *    ProximityDevice::get
+ *    ProximityDevice::remove
+ */
 struct ProximityData {
   std::string deviceID = "";                    // Link key for the device
   std::string name = "unknown";                 // Name of the device
@@ -51,6 +56,8 @@ class ProximityDevice {
   bool get(const std::string& deviceID);  // Retrieves device from JSON if exists and updates data struct
   void setAdmin(bool value);              // set data.isAdmin to value and updates json
   std::string printJsonFile();            // Prints the contents of json file to INFO (1)
+  void setSwitchPin(uint8_t pin);         // Sets the GPIO pin used for the switch
+  uint8_t getSwitchPin() const;           // Gets the GPIO pin used for the switch (default GPIO18)
 
   SemaphoreHandle_t mutex;             // Mutex
   uint32_t rssiExecutedTimeStamp = 0;  // Timestamp of last rssi command sent (in millis).
@@ -59,6 +66,7 @@ class ProximityDevice {
   const char* fileName;
   File jsonFile;
   JsonDocument jsonDocument;
+  uint8_t switch_pin = GPIO_NUM_18;  // GPIO pin for the switch (default to GPIO18)
 };
 
 #endif

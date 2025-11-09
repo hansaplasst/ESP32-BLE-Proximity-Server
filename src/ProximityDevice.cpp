@@ -227,6 +227,15 @@ std::string ProximityDevice::printJsonFile() {
   return contents;
 }
 
+void ProximityDevice::setSwitchPin(uint8_t pin) {
+  pinMode(pin, OUTPUT);
+  switch_pin = pin;
+}
+
+uint8_t ProximityDevice::getSwitchPin() const {
+  return switch_pin;
+}
+
 /**
  * @brief Sets the admin status for the proximity device.
  *

@@ -53,13 +53,14 @@ static void SwitchNotifyTask(void* arg) {
 
       // The ONLY place that modifies the physical state and global switchState:
       switchState = msg.target_on;
-#ifdef LED_BUILTIN
-      digitalWrite(LED_BUILTIN, switchState ? HIGH : LOW);
-#endif
-
       if (proximityServer) {
+        // Update the physical pin via the BLEProximity instance and send notification
+        digitalWrite(proximityServer->device.getSwitchPin(), switchState ? HIGH : LOW);
+
         // Send rSwitchCharacteristic update with current state
         proximityServer->notifySwitch(stateToStr(switchState));
+      } else {
+        DPRINTF(2, "Switch update skipped: proximityServer is null");
       }
       DPRINTF(1, "Switch applied: %s", stateToStr(switchState));
     }
@@ -132,9 +133,13 @@ void gapEventHandler(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t* param
  * characteristics for proximity detection. It also starts advertising the BLE service.
  *
  * @param deviceName The name of the BLE device (default is "BLE Proximity Server").
+ * @param switchPin The GPIO pin used for the switch (default is GPIO_NUM_18).
  */
-BLEProximity::BLEProximity(const char* deviceName) {
+BLEProximity::BLEProximity(const char* deviceName, uint8_t switchPin) {
   DPRINTF(0, "BLEProximity(%s)", deviceName);
+
+  device.setSwitchPin(switchPin);
+  DPRINTF(1, "Switch pin initialized: GPIO%d", device.getSwitchPin());
 
   BLEDevice::init(deviceName);
 
@@ -280,7 +285,7 @@ void BLEProximity::setSwitchState(const std::string& value) {
   }
 
   if (value == "status") {
-    bool state = digitalRead(LED_BUILTIN) == HIGH;
+    bool state = digitalRead(device.getSwitchPin()) == HIGH;
     notifyChar(rwCharacteristic, stateToStr(state));
     notifyChar(rSwitchCharacteristic, stateToStr(state));
     return;

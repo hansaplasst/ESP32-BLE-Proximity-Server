@@ -17,3 +17,5 @@ Thumbs.db
 *.tmp
 .idea/
 *.code-workspace
+
+/src/main.cpp

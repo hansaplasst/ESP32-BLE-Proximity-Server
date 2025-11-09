@@ -22,7 +22,7 @@ static BLECharacteristic* rProximityCharacteristic = nullptr;  // Characteristic
 
 class BLEProximity : public BLEServerCallbacks {
  public:
-  BLEProximity(const char* deviceName = "BLE Proximity Server");
+  BLEProximity(const char* deviceName = "BLE Proximity Server", uint8_t switchPin = GPIO_NUM_18);
   void begin();
   void poll();
 
