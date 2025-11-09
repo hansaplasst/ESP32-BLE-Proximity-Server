@@ -342,7 +342,7 @@ void BLEProximity::setSwitchState(const std::string& value) {
 void BLEProximity::onConnect(BLEServer* pServer, esp_ble_gatts_cb_param_t* param) {
   DPRINTF(0, "onConnect");
   device.data.mac = BLEAddress(param->connect.remote_bda).toString();
-  DPRINTF(1, "Device connected: %s (%s)", device.data.name.c_str(), device.data.mac.c_str());
+  DPRINTF(1, "Device connected: %s", device.data.mac.c_str());
   deviceConnected = true;
 }
 
@@ -478,7 +478,7 @@ void ProximitySecurity::onAuthenticationComplete(esp_ble_auth_cmpl_t cmpl) {
   if (device.data.isBlocked) return;  // Ignore blocked devices
 
   if (device.isAuthenticated) {
-    DPRINTF(1, "Authentication successful: %s", macStr.c_str());
+    DPRINTF(1, "Authentication successful: %s (%s)", device.data.name.c_str(), macStr.c_str());
     // printBondedDevices();
     std::string hashedKey = getHashedPeerKey(cmpl.bd_addr);
     if (hashedKey == "") {
