@@ -828,7 +828,7 @@ void CommandCallback::onWrite(BLECharacteristic* pChar, esp_ble_gatts_cb_param_t
       char buf[48];
       snprintf(buf, sizeof(buf), "rssiDelay=%ld", sec);
       notifyChar(rwCharacteristic, buf);
-      DPRINTF(1, "rssi_command_delay set to %ld s", sec);
+      DPRINTF(1, "rssi_command_delay set to %lds", sec);
     }
 
     if (bSetDisconnectCmd) {
