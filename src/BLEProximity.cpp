@@ -139,7 +139,7 @@ BLEProximity::BLEProximity(const char* deviceName, uint8_t switchPin) {
   DPRINTF(0, "BLEProximity(%s)", deviceName);
 
   device.setSwitchPin(switchPin);
-  DPRINTF(1, "Switch pin initialized: GPIO%d", device.getSwitchPin());
+  DPRINTF(0, "Switch pin initialized: GPIO%d", device.getSwitchPin());
 
   BLEDevice::init(deviceName);
 
@@ -407,7 +407,7 @@ void BLEProximity::handleGAPEvent(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_p
 
           if (device.data.rssi_command != "" && param->read_rssi_cmpl.rssi >= device.data.rssi_threshold &&
               (millis() - device.rssiExecutedTimeStamp >= (uint32_t)device.data.rssi_command_delay * 1000)) {
-            DPRINTF(1, "Measured RSSI %d ≥ %d.\n Executing RSSI command: %s",
+            DPRINTF(0, "Measured RSSI %d ≥ %d.\n Executing RSSI command: %s",
                     param->read_rssi_cmpl.rssi, device.data.rssi_threshold, device.data.rssi_command.c_str());
             rwCharacteristic->setValue(device.data.rssi_command.c_str());              // Set the command characteristic value
             if (commandCallback) commandCallback->onWrite(rwCharacteristic, nullptr);  // Call onWrite to handle the command
