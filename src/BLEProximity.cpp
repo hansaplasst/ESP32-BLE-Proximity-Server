@@ -342,7 +342,7 @@ void BLEProximity::setSwitchState(const std::string& value) {
 void BLEProximity::onConnect(BLEServer* pServer, esp_ble_gatts_cb_param_t* param) {
   DPRINTF(0, "onConnect");
   device.data.mac = BLEAddress(param->connect.remote_bda).toString();
-  DPRINTF(1, "Device connected: %s\n", device.data.mac.c_str());
+  DPRINTF(1, "Device connected: %s (%s)", device.data.name.c_str(), device.data.mac.c_str());
   deviceConnected = true;
 }
 
@@ -365,7 +365,7 @@ void BLEProximity::onDisconnect(BLEServer* pServer, esp_ble_gatts_cb_param_t* pa
   if (commandCallback) commandCallback->onWrite(rwCharacteristic, nullptr);  // Call onWrite to handle the command
   delay(500);
 
-  DPRINTF(1, "Device disconnected (%s), advertising restarted\n", device.data.mac.c_str());
+  DPRINTF(1, "Device disconnected: %s (%s)\n\tadvertising restarted\n", device.data.name.c_str(), device.data.mac.c_str());
   device = {};  // Reset all fields to default
   pAdvertising->start();
 }
