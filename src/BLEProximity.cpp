@@ -478,7 +478,7 @@ void ProximitySecurity::onAuthenticationComplete(esp_ble_auth_cmpl_t cmpl) {
   if (device.data.isBlocked) return;  // Ignore blocked devices
 
   if (device.isAuthenticated) {
-    DPRINTF(1, "Authentication successful: %s", macStr.c_str());
+    DPRINTF(1, "Authentication successful");
     // printBondedDevices();
     std::string hashedKey = getHashedPeerKey(cmpl.bd_addr);
     if (hashedKey == "") {
@@ -525,7 +525,7 @@ void ProximitySecurity::onAuthenticationComplete(esp_ble_auth_cmpl_t cmpl) {
         device.update();           // Save updated device data to JSON
       }
     }
-    DPRINTF(1, "\tWelcome %s", device.data.name.c_str());
+    DPRINTF(1, "\t*** Welcome %s ***", device.data.name.c_str());
     requestProximity(cmpl.bd_addr);  // Fire an RSSI request event
   } else {
     DPRINTF(2, "Authentication failed: %s", macStr.c_str());
