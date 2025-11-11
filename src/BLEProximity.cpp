@@ -191,7 +191,7 @@ BLEProximity::BLEProximity(const char* deviceName, uint8_t switchPin) {
   pAdvertising->setAppearance(ESP_BLE_APPEARANCE_GENERIC_REMOTE);  // BLE Remote Control Icon Appearance
   pAdvertising->start();                                           // BLEDevice::startAdvertising();
 
-  DPRINTF(1, "BLE advertising started\n");
+  DPRINTF(1, "BLE advertising started");
 }
 
 /**
