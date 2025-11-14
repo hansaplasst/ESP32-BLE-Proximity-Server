@@ -213,7 +213,7 @@ void BLEProximity::begin() {
     sSwitchQueue = xQueueCreate(8, sizeof(SwitchMsg));
   }
   if (sSwitchQueue && !sSwitchTask) {
-    xTaskCreatePinnedToCore(SwitchNotifyTask, "SwitchNotifyTask", 4096, nullptr, 5, &sSwitchTask, 1);  // Pin the task on core 1 (App CPU).
+    xTaskCreatePinnedToCore(SwitchNotifyTask, "SwitchNotifyTask", 4096, nullptr, 5, &sSwitchTask, 0);  // Pin the task on core 0
   }
   // ProximitySecurity::printBondedDevices();
   delay(500);
