@@ -138,10 +138,24 @@ void gapEventHandler(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t* param
 BLEProximity::BLEProximity(const char* deviceName, uint8_t switchPin) {
   DPRINTF(0, "BLEProximity(%s)", deviceName);
 
+  device_name = deviceName;
   device.setSwitchPin(switchPin);
   DPRINTF(0, "Switch pin initialized: GPIO%d", device.getSwitchPin());
+}
 
-  BLEDevice::init(deviceName);
+/**
+ * @brief Initializes the BLEProximity service.
+ *
+ * This method performs additional initialization steps required for the BLEProximity service.
+ * It creates a queue for switch messages if it does not already exist, and starts the
+ * SwitchNotifyTask on core 1 (App CPU) if it is not already running.
+ *
+ * The method ensures that the switch queue and notification task are properly set up
+ * before the BLEProximity service begins operation.
+ */
+void BLEProximity::begin() {
+  DPRINTF(0, "BLEProximity::begin()");
+  BLEDevice::init(device_name.c_str());
 
   BLEDevice::setEncryptionLevel(ESP_BLE_SEC_ENCRYPT);  // Set encryption level to ESP_BLE_SEC_ENCRYPT
   BLEDevice::setSecurityCallbacks(new ProximitySecurity(device));
@@ -191,20 +205,9 @@ BLEProximity::BLEProximity(const char* deviceName, uint8_t switchPin) {
   pAdvertising->setAppearance(ESP_BLE_APPEARANCE_GENERIC_REMOTE);  // BLE Remote Control Icon Appearance
   pAdvertising->start();                                           // BLEDevice::startAdvertising();
 
+  delay(500);  // small delay to ensure advertising starts
   DPRINTF(1, "BLE advertising started");
-}
 
-/**
- * @brief Initializes the BLEProximity service.
- *
- * This method performs additional initialization steps required for the BLEProximity service.
- * It creates a queue for switch messages if it does not already exist, and starts the
- * SwitchNotifyTask on core 1 (App CPU) if it is not already running.
- *
- * The method ensures that the switch queue and notification task are properly set up
- * before the BLEProximity service begins operation.
- */
-void BLEProximity::begin() {
   // Additional init steps
   if (!sSwitchQueue) {
     sSwitchQueue = xQueueCreate(8, sizeof(SwitchMsg));
@@ -212,8 +215,8 @@ void BLEProximity::begin() {
   if (sSwitchQueue && !sSwitchTask) {
     xTaskCreatePinnedToCore(SwitchNotifyTask, "SwitchNotifyTask", 4096, nullptr, 5, &sSwitchTask, 1);  // Pin the task on core 1 (App CPU).
   }
-
   // ProximitySecurity::printBondedDevices();
+  delay(500);
 }
 
 /**
@@ -421,7 +424,7 @@ void BLEProximity::handleGAPEvent(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_p
           DPRINTF(2, "WARNING: Could not acquire mutex in handleGAPEvent()");
         }
       } else {
-        DPRINTF(2, "RSSI read failed");
+        DPRINTF(2, "RSSI read failed: Error(%d)", param->read_rssi_cmpl.status);
       }
       break;
     }

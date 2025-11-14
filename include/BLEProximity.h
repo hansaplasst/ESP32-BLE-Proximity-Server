@@ -43,7 +43,7 @@ class BLEProximity : public BLEServerCallbacks {
   BLEService* pService = nullptr;
   BLEAdvertising* pAdvertising = nullptr;
   esp_ble_sec_act_t encryptionLevel;
-  // void updateProximity(int8_t rssi);
+  std::string device_name;
 };
 
 class ProximitySecurity : public BLESecurityCallbacks {
