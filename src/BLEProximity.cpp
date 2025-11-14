@@ -424,7 +424,7 @@ void BLEProximity::handleGAPEvent(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_p
           DPRINTF(2, "WARNING: Could not acquire mutex in handleGAPEvent()");
         }
       } else {
-        DPRINTF(2, "RSSI read failed: Error(%d)", param->read_rssi_cmpl.status);
+        DPRINTF(2, "RSSI read failed: Event(%d) Error(%d)", event, param->read_rssi_cmpl.status);
       }
       break;
     }
