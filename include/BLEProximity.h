@@ -44,6 +44,9 @@ class BLEProximity : public BLEServerCallbacks {
   BLEAdvertising* pAdvertising = nullptr;
   esp_ble_sec_act_t encryptionLevel;
   std::string device_name;
+
+  bool rssiRequestInProgress = false;  // true as long as there is a read_rssi in progress
+  uint32_t lastRssiRequestMs = 0;      // timestamp of the last request (millis)
 };
 
 class ProximitySecurity : public BLESecurityCallbacks {

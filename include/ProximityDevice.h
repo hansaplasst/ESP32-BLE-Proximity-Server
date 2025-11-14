@@ -68,5 +68,4 @@ class ProximityDevice {
   JsonDocument jsonDocument;
   uint8_t switch_pin = GPIO_NUM_18;  // GPIO pin for the switch (default to GPIO18)
 };
-
 #endif

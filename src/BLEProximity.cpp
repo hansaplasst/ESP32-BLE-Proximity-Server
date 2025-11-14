@@ -103,22 +103,6 @@ bool notifyChar(BLECharacteristic* pChar, const char* value) {
   }
 }
 
-/**
- * @brief Requests the RSSI (Received Signal Strength Indicator) value from a BLE peer device.
- *
- * This function initiates a request to read the RSSI value from the specified BLE peer address.
- * It logs the request and handles any errors that may occur during the process.
- *
- * @param peerAddress The BLEAddress object representing the peer device from which to request the RSSI.
- */
-void requestProximity(BLEAddress peerAddress) {
-  DPRINTF(0, "Request RSSI from: %s", peerAddress.toString().c_str());
-  esp_err_t err = esp_ble_gap_read_rssi((uint8_t*)peerAddress.getNative());
-  if (err != ESP_OK) {
-    DPRINTF(2, "Failed (%d) to request RSSI from: %s", err, peerAddress.toString().c_str());  // LOG
-  }
-}
-
 void gapEventHandler(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t* param) {
   if (proximityServer) {
     proximityServer->handleGAPEvent(event, param);
@@ -205,7 +189,7 @@ void BLEProximity::begin() {
   pAdvertising->setAppearance(ESP_BLE_APPEARANCE_GENERIC_REMOTE);  // BLE Remote Control Icon Appearance
   pAdvertising->start();                                           // BLEDevice::startAdvertising();
 
-  delay(500);  // small delay to ensure advertising starts
+  delay(100);  // small delay to ensure advertising starts
   DPRINTF(1, "BLE advertising started");
 
   // Additional init steps
@@ -213,24 +197,48 @@ void BLEProximity::begin() {
     sSwitchQueue = xQueueCreate(8, sizeof(SwitchMsg));
   }
   if (sSwitchQueue && !sSwitchTask) {
-    xTaskCreatePinnedToCore(SwitchNotifyTask, "SwitchNotifyTask", 4096, nullptr, 5, &sSwitchTask, 0);  // Pin the task on core 0
+    xTaskCreatePinnedToCore(SwitchNotifyTask, "SwitchNotifyTask", 4096, nullptr, 5, &sSwitchTask, 1);  // Pin the task on core 1
   }
   // ProximitySecurity::printBondedDevices();
-  delay(500);
 }
 
 /**
- * @brief Polling method for the BLEProximity service.
+ * @brief Polls for RSSI updates from the connected BLE device.
  *
- * This method is intended to be called periodically to perform polling tasks related
- * to the BLEProximity service. Specifically, it checks if the device is authenticated
- * and, if so, requests the RSSI (Received Signal Strength Indicator) value from the
- * connected BLE device to monitor proximity.
+ * This method checks if the device is authenticated and if enough time has passed
+ * since the last RSSI request. If so, it initiates a new RSSI read request to the
+ * connected BLE device. The method ensures that only one RSSI request is in progress
+ * at any given time.
  */
 void BLEProximity::poll() {
-  // Polling tasks. Like RSSI request.
-  if (device.isAuthenticated) {
-    requestProximity(BLEAddress(device.data.mac));
+  DPRINTF(0, "BLEProximity::poll()");
+  if (!device.isAuthenticated) {
+    return;
+  }
+
+  const uint32_t now = millis();
+  const uint32_t intervalMs = 900;  // 1 RSSI-measurement per 900ms
+
+  // Wait until previous request is done
+  if (rssiRequestInProgress) {
+    return;
+  }
+
+  // Only start a new request if the interval has passed
+  if (now - lastRssiRequestMs < intervalMs) {
+    return;
+  }
+
+  // request RSSI if authenticated
+  BLEAddress addr(device.data.mac.c_str());
+  esp_err_t err = esp_ble_gap_read_rssi((uint8_t*)addr.getNative());
+
+  if (err == ESP_OK) {
+    rssiRequestInProgress = true;
+    lastRssiRequestMs = now;
+  } else {
+    DPRINTF(2, "esp_ble_gap_read_rssi failed (err=%d) for %s", err, addr.toString().c_str());
+    lastRssiRequestMs = now;  // little cooldown so we don't keep spamming
   }
 }
 
@@ -387,6 +395,7 @@ void BLEProximity::handleGAPEvent(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_p
   DPRINTF(0, "Event %d received", (int)event);
   switch (event) {
     case ESP_GAP_BLE_READ_RSSI_COMPLETE_EVT: {  // Handle requestProximity
+      rssiRequestInProgress = false;            // Mark that the RSSI request is complete
       if (param->read_rssi_cmpl.status == ESP_BT_STATUS_SUCCESS) {
         if (xSemaphoreTake(device.mutex, portMAX_DELAY) == pdTRUE) {
           // BEGIN CRITICAL SECTION
@@ -529,7 +538,6 @@ void ProximitySecurity::onAuthenticationComplete(esp_ble_auth_cmpl_t cmpl) {
       }
     }
     DPRINTF(1, "\t*** Welcome %s ***", device.data.name.c_str());
-    requestProximity(cmpl.bd_addr);  // Fire an RSSI request event
   } else {
     DPRINTF(2, "Authentication failed: %s", macStr.c_str());
 

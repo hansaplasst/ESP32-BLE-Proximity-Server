@@ -41,6 +41,4 @@ void loop() {
   // }
 
   proximityServer->poll();
-
-  delay(500);
 }
