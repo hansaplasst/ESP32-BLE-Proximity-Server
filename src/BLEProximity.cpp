@@ -197,7 +197,12 @@ void BLEProximity::begin() {
     sSwitchQueue = xQueueCreate(8, sizeof(SwitchMsg));
   }
   if (sSwitchQueue && !sSwitchTask) {
-    xTaskCreatePinnedToCore(SwitchNotifyTask, "SwitchNotifyTask", 4096, nullptr, 5, &sSwitchTask, 1);  // Pin the task on core 1
+    /**
+     * Switch Notification Task
+     * Core 0: System CPU, mostly used for system tasks
+     * Core 1: App CPU, suitable for user tasks
+     */
+    xTaskCreatePinnedToCore(SwitchNotifyTask, "SwitchNotifyTask", 4096, nullptr, 5, &sSwitchTask, 0 /* Core 0 */);
   }
   // ProximitySecurity::printBondedDevices();
 }
@@ -374,9 +379,8 @@ void BLEProximity::onDisconnect(BLEServer* pServer, esp_ble_gatts_cb_param_t* pa
 
   rwCharacteristic->setValue(device.data.on_disconnect_command.c_str());     // Set the command characteristic value
   if (commandCallback) commandCallback->onWrite(rwCharacteristic, nullptr);  // Call onWrite to handle the command
-  delay(500);
-
   DPRINTF(1, "Device disconnected: %s (%s)\n\tadvertising restarted\n", device.data.name.c_str(), device.data.mac.c_str());
+  delay(500);
   device = {};  // Reset all fields to default
   pAdvertising->start();
 }
@@ -417,8 +421,11 @@ void BLEProximity::handleGAPEvent(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_p
             notifyChar(rwCharacteristic, "RSSI updated");
           }
 
+          uint32_t delayOffset = device.data.rssi_command == "momOpen" || device.data.rssi_command == "momClose"
+                                     ? (uint32_t)device.data.momSwitchDelay
+                                     : 0;
           if (device.data.rssi_command != "" && param->read_rssi_cmpl.rssi >= device.data.rssi_threshold &&
-              (millis() - device.rssiExecutedTimeStamp >= (uint32_t)device.data.rssi_command_delay * 1000)) {
+              (millis() - device.rssiExecutedTimeStamp >= (uint32_t)device.data.rssi_command_delay * 1000 + delayOffset)) {
             DPRINTF(0, "Measured RSSI %d ≥ %d.\n Executing RSSI command: %s",
                     param->read_rssi_cmpl.rssi, device.data.rssi_threshold, device.data.rssi_command.c_str());
             rwCharacteristic->setValue(device.data.rssi_command.c_str());              // Set the command characteristic value
