@@ -194,7 +194,6 @@ void BLEProximity::begin() {
   pAdvertising->start();                                           // BLEDevice::startAdvertising();
 
   delay(100);  // small delay to ensure advertising starts
-  DPRINTF(0, "BLE advertising started");
 
   // Additional init steps
   if (!sSwitchQueue) {
@@ -210,7 +209,10 @@ void BLEProximity::begin() {
   }
   // ProximitySecurity::printBondedDevices();
 
-  DPRINTF(1, "Bluetooth Low Energy Service '%s' started", device_name.c_str());
+  DPRINTF(1,
+          "Bluetooth Low Energy Service started\n\t"
+          "Open Bluetooth settings and pair with: %s",
+          device_name.c_str());
 }
 
 /**
