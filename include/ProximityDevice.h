@@ -45,6 +45,7 @@ struct ProximityData {
 class ProximityDevice {
  public:
   ProximityDevice(const char* jsonFileName = "/authorized_devices.json");
+  ~ProximityDevice();
 
   // Device Information
   ProximityData data;

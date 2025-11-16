@@ -72,6 +72,17 @@ ProximityDevice::ProximityDevice(const char* jsonFileName) : fileName(jsonFileNa
   jsonFile.close();
 }
 
+ProximityDevice::~ProximityDevice() {
+  DPRINTF(0, "~ProximityDevice()");
+  if (jsonFile) {
+    jsonFile.close();
+  }
+
+  if (mutex) {
+    vSemaphoreDelete(mutex);
+  }
+}
+
 /**
  * @brief Adds or updates the data entry in the JSON file.
  *

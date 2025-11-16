@@ -139,6 +139,10 @@ BLEProximity::BLEProximity(const char* deviceName, uint8_t switchPin) {
  */
 void BLEProximity::begin() {
   DPRINTF(0, "BLEProximity::begin()");
+  static bool initialized = false;
+  if (initialized) return;
+  initialized = true;
+
   BLEDevice::init(device_name.c_str());
 
   BLEDevice::setEncryptionLevel(ESP_BLE_SEC_ENCRYPT);  // Set encryption level to ESP_BLE_SEC_ENCRYPT
