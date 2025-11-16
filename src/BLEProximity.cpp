@@ -194,7 +194,7 @@ void BLEProximity::begin() {
   pAdvertising->start();                                           // BLEDevice::startAdvertising();
 
   delay(100);  // small delay to ensure advertising starts
-  DPRINTF(1, "BLE advertising started");
+  DPRINTF(0, "BLE advertising started");
 
   // Additional init steps
   if (!sSwitchQueue) {
@@ -209,6 +209,8 @@ void BLEProximity::begin() {
     xTaskCreatePinnedToCore(SwitchNotifyTask, "SwitchNotifyTask", 4096, nullptr, 5, &sSwitchTask, 0 /* Core 0 */);
   }
   // ProximitySecurity::printBondedDevices();
+
+  DPRINTF(1, "Bluetooth Low Energy Service '%s' started", device_name.c_str());
 }
 
 /**
