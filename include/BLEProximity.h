@@ -18,7 +18,7 @@ static bool notifyChar(BLECharacteristic* pChar, const char* value);
 
 static BLECharacteristic* rwCharacteristic = nullptr;          // Characteristic (R/W) to receive commands and get results
 static BLECharacteristic* rSwitchCharacteristic = nullptr;     // Characteristic (R) to read switch status
-static BLECharacteristic* rProximityCharacteristic = nullptr;  // Characteristic (R) to read switch status
+static BLECharacteristic* rProximityCharacteristic = nullptr;  // Characteristic (R) to read proximity status
 
 class BLEProximity : public BLEServerCallbacks {
  public:
@@ -26,9 +26,10 @@ class BLEProximity : public BLEServerCallbacks {
   void begin();
   void poll();
 
-  void setProximityThreshold(int8_t rssi);  // Proximity threshold instellen (optioneel)
-  void setSwitchState(const std::string& value);
-  void notifySwitch(const char* state);  // <-- core-1 updates the switch characteristic
+  void setProximityThreshold(int8_t rssi);        // Proximity threshold instellen (optioneel)
+  void setSwitchState(const std::string& value);  // "OPEN" or "CLOSED"
+  void setSwitchState(bool value);                // True = "OPEN", False = "CLOSED"
+  void notifySwitch(const char* state);           // <-- core-1 updates the switch characteristic
 
   // Callbacks
   void onConnect(BLEServer* pServer, esp_ble_gatts_cb_param_t* param) override;

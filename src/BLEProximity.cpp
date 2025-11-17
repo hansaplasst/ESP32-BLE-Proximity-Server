@@ -110,14 +110,23 @@ void gapEventHandler(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t* param
 }
 
 /**
- * @brief Constructs a BLEProximity object and initializes the BLE server and services.
+ * Construct a BLEProximity instance.
  *
- * This constructor initializes the BLE device with the specified device name, sets up
- * security parameters, creates a BLE server, and defines the necessary services and
- * characteristics for proximity detection. It also starts advertising the BLE service.
+ * Initializes the instance with a BLE device name and configures the
+ * hardware switch pin on the internal device object.
  *
- * @param deviceName The name of the BLE device (default is "BLE Proximity Server").
- * @param switchPin The GPIO pin used for the switch (default is GPIO_NUM_18).
+ * @param deviceName
+ *   Null-terminated C-string containing the BLE device name. The pointer is
+ *   stored as-is in the device_name member; the caller is responsible for
+ *   ensuring the string remains valid for the lifetime of this object.
+ *
+ * @param switchPin
+ *   GPIO pin number used for the proximity switch. This value is forwarded to
+ *   device.setSwitchPin() to configure the underlying hardware abstraction.
+ *
+ * Side effects:
+ * - device_name is set to deviceName.
+ * - device.setSwitchPin(switchPin) is invoked.
  */
 BLEProximity::BLEProximity(const char* deviceName, uint8_t switchPin) {
   DPRINTF(0, "BLEProximity(%s)", deviceName);
@@ -207,7 +216,11 @@ void BLEProximity::begin() {
      */
     xTaskCreatePinnedToCore(SwitchNotifyTask, "SwitchNotifyTask", 4096, nullptr, 5, &sSwitchTask, 0 /* Core 0 */);
   }
+  delay(100);  // small delay to ensure task is started
+
   // ProximitySecurity::printBondedDevices();
+
+  setSwitchState(switchState);  // Ensure physical pin matches initial state
 
   DPRINTF(1,
           "Bluetooth Low Energy Service started\n\t"
@@ -354,6 +367,21 @@ void BLEProximity::setSwitchState(const std::string& value) {
 }
 
 /**
+ * @brief Sets the switch state based on a boolean value.
+ *
+ * This method converts the boolean value to a corresponding string command
+ * ("OPEN" for true, "CLOSED" for false) and calls the string-based
+ * `setSwitchState` method to update the switch state accordingly.
+ *
+ * @param value Boolean value representing the desired switch state.
+ *              - true: Switch should be set to "OPEN".
+ *              - false: Switch should be set to "CLOSED".
+ */
+void BLEProximity::setSwitchState(bool value) {
+  setSwitchState(value ? "OPEN" : "CLOSED");
+}
+
+/**
  * @brief Callback invoked when a BLE client connects to the server.
  *
  * This method handles the connection event by updating the device state and logging
@@ -472,6 +500,7 @@ uint32_t ProximitySecurity::onPassKeyRequest() {
   return currentPasskey;
 }
 
+/** Passkey notify handler */
 void ProximitySecurity::onPassKeyNotify(uint32_t passkey) {
   DPRINTF(2, "Passkey notify: %06u", passkey);
   if (s_passkeyHandler) {
@@ -489,7 +518,9 @@ bool ProximitySecurity::onSecurityRequest() {
   return true;
 }
 
+/** Passkey notify handler */
 ProximitySecurity::PasskeyNotifyHandler ProximitySecurity::s_passkeyHandler = nullptr;
+/** Set the passkey notify handler */
 void ProximitySecurity::setPasskeyNotifyHandler(PasskeyNotifyHandler handler) {
   s_passkeyHandler = handler;
 }

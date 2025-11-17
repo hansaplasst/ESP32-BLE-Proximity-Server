@@ -18,6 +18,7 @@ ProximityDevice::ProximityDevice(const char* jsonFileName) : fileName(jsonFileNa
   mutex = xSemaphoreCreateMutex();
   if (!mutex) {
     DPRINTF(3, "Failed to create mutex!");
+    return;
   }
 
   // Checking LittleFS file system
@@ -48,7 +49,7 @@ ProximityDevice::ProximityDevice(const char* jsonFileName) : fileName(jsonFileNa
     } else {
       jsonFile.print("{}");
       jsonFile.close();
-      DPRINTF(1, "Looks Successful.")
+      DPRINTF(1, " Success.")
     }
   }
 
