@@ -249,22 +249,18 @@ void BLEProximity::begin() {
  */
 void BLEProximity::poll() {
   // DPRINTF(0, "BLEProximity::poll()");
-  if (!device.isAuthenticated) {
-    return;
-  }
+  if (!deviceConnected) return;
+
+  if (!device.isAuthenticated) return;
 
   const uint32_t now = millis();
   const uint32_t intervalMs = 900;  // 1 RSSI-measurement per 900ms
 
   // Wait until previous request is done
-  if (rssiRequestInProgress) {
-    return;
-  }
+  if (rssiRequestInProgress) return;
 
   // Only start a new request if the interval has passed
-  if (now - lastRssiRequestMs < intervalMs) {
-    return;
-  }
+  if (now - lastRssiRequestMs < intervalMs) return;
 
   // request RSSI if authenticated
   BLEAddress addr(device.data.mac.c_str());
