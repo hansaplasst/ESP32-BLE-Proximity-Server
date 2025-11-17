@@ -60,8 +60,11 @@ class ProximitySecurity : public BLESecurityCallbacks {
   bool onSecurityRequest() override;
   void onAuthenticationComplete(esp_ble_auth_cmpl_t cmpl) override;
 
+  // Authentication Callback Hooks
   using PasskeyNotifyHandler = void (*)(uint32_t passkey);
+  using AuthResultHandler = void (*)(bool success);
   static void setPasskeyNotifyHandler(PasskeyNotifyHandler handler);
+  static void setAuthResultHandler(AuthResultHandler handler);
 
   static std::string keyHash(const esp_bt_octet16_t& key);
   static std::string getHexString(const esp_bt_octet16_t& value);
@@ -74,6 +77,8 @@ class ProximitySecurity : public BLESecurityCallbacks {
   ProximityDevice& device;
 
   static PasskeyNotifyHandler s_passkeyHandler;
+  static AuthResultHandler s_authResultHandler;
+
   static const esp_ble_bond_key_info_t* getBondedKey(esp_bd_addr_t mac);
 };
 

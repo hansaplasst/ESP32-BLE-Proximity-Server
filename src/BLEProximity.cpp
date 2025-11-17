@@ -31,6 +31,11 @@ struct SwitchMsg {
 
 static QueueHandle_t sSwitchQueue = nullptr;
 static TaskHandle_t sSwitchTask = nullptr;
+
+// Callback hook handlers
+ProximitySecurity::PasskeyNotifyHandler ProximitySecurity::s_passkeyHandler = nullptr;
+ProximitySecurity::AuthResultHandler ProximitySecurity::s_authResultHandler = nullptr;
+
 extern BLEProximity* proximityServer;
 static bool switchState = false;
 static inline const char* stateToStr(bool on) { return on ? "OPEN" : "CLOSED"; }
@@ -509,12 +514,16 @@ bool ProximitySecurity::onSecurityRequest() {
   return true;
 }
 
-/** Passkey notify handler */
-ProximitySecurity::PasskeyNotifyHandler ProximitySecurity::s_passkeyHandler = nullptr;
 /** Set the passkey notify handler */
 void ProximitySecurity::setPasskeyNotifyHandler(PasskeyNotifyHandler handler) {
   DPRINTF(0, "ProximitySecurity::setPasskeyNotifyHandler()");
   s_passkeyHandler = handler;
+}
+
+/** Set authentication result handles */
+void ProximitySecurity::setAuthResultHandler(AuthResultHandler handler) {
+  DPRINTF(0, "ProximitySecurity::setAuthResultHandler()");
+  s_authResultHandler = handler;
 }
 
 /**
@@ -531,6 +540,11 @@ void ProximitySecurity::setPasskeyNotifyHandler(PasskeyNotifyHandler handler) {
 void ProximitySecurity::onAuthenticationComplete(esp_ble_auth_cmpl_t cmpl) {
   DPRINTF(0, "onAuthenticationComplete: %s", cmpl.success ? "Success" : "Failure");
   device.isAuthenticated = cmpl.success;
+
+  if (s_authResultHandler) {
+    s_authResultHandler(cmpl.success);  // Notify result handler
+  }
+
   std::string macStr = BLEAddress(cmpl.bd_addr).toString();
 
   if (device.data.isBlocked) return;  // Ignore blocked devices
