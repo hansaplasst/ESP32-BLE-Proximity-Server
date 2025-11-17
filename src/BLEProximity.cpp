@@ -915,6 +915,9 @@ void CommandCallback::onWrite(BLECharacteristic* pChar, esp_ble_gatts_cb_param_t
     if (value == "json" && bleProx->device.data.isAdmin) {
       bleProx->device.printJsonFile();  // TODO: Do NOT enable this in production, it's insecure!
       notifyChar(rwCharacteristic, "Disabled for security reasons");
+    } else if (value == "json") {
+      notifyChar(rwCharacteristic, "Only admin can do that");
+      DPRINTF(3, "json command denied: not an admin device");
     }
 
     // Format the LittleFS if requested
@@ -928,7 +931,7 @@ void CommandCallback::onWrite(BLECharacteristic* pChar, esp_ble_gatts_cb_param_t
         ProximitySecurity::removeBondedDevices();
       }
     } else if (value == "format") {
-      notifyChar(rwCharacteristic, "Only admin can format");
+      notifyChar(rwCharacteristic, "Only admin can do that");
       DPRINTF(3, "Format command denied: not an admin device");
     }
   }
