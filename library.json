@@ -1,0 +1,13 @@
+{
+  "name": "ESP32 BLE Proximity Server",
+  "version": "1.0.0",
+  "author": "Hansaplast",
+  "license": "GPL-3.0",
+  "keywords": ["esp32", "ble", "proximity"],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/hansaplasst/ESP32-BLE-Proximity-Server.git"
+  },
+  "frameworks": ["arduino"],
+  "platforms": ["espressif32"]
+}
