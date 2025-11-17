@@ -474,6 +474,9 @@ uint32_t ProximitySecurity::onPassKeyRequest() {
 
 void ProximitySecurity::onPassKeyNotify(uint32_t passkey) {
   DPRINTF(2, "Passkey notify: %06u", passkey);
+  if (s_passkeyHandler) {
+    s_passkeyHandler(passkey);
+  }
 }
 
 bool ProximitySecurity::onConfirmPIN(uint32_t passkey) {
@@ -484,6 +487,11 @@ bool ProximitySecurity::onConfirmPIN(uint32_t passkey) {
 bool ProximitySecurity::onSecurityRequest() {
   DPRINTF(1, "Security request received");
   return true;
+}
+
+ProximitySecurity::PasskeyNotifyHandler ProximitySecurity::s_passkeyHandler = nullptr;
+void ProximitySecurity::setPasskeyNotifyHandler(PasskeyNotifyHandler handler) {
+  s_passkeyHandler = handler;
 }
 
 /**
