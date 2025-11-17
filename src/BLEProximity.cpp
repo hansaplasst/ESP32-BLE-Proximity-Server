@@ -223,12 +223,14 @@ void BLEProximity::begin() {
      */
     xTaskCreatePinnedToCore(SwitchNotifyTask, "SwitchNotifyTask", 4096, nullptr, 5, &sSwitchTask, 0 /* Core 0 */);
   }
+  delay(50);  // small delay to ensure task is started
   // ProximitySecurity::printBondedDevices();
 
   DPRINTF(0, " Ensure physical pin matches initial state")
   setSwitchState(switchState ? "open" : "close");  // Ensure physical pin matches initial state
-
-  delay(100);  // small delay to ensure task is started
+#if DEBUG_LEVEL == 0
+  delay(50);  // small delay to ensure debug messages are in sync
+#endif
 
   DPRINTF(0, " BLE Init Finished...")
   DPRINTF(1,
