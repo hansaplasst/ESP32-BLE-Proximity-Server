@@ -28,7 +28,6 @@ class BLEProximity : public BLEServerCallbacks {
 
   void setProximityThreshold(int8_t rssi);        // Proximity threshold instellen (optioneel)
   void setSwitchState(const std::string& value);  // "OPEN" or "CLOSED"
-  void setSwitchState(bool value);                // True = "OPEN", False = "CLOSED"
   void notifySwitch(const char* state);           // <-- core-1 updates the switch characteristic
 
   // Callbacks

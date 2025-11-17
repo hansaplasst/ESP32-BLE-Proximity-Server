@@ -152,6 +152,7 @@ void BLEProximity::begin() {
   if (initialized) return;
   initialized = true;
 
+  DPRINTF(0, " BLE Init Start");
   BLEDevice::init(device_name.c_str());
 
   BLEDevice::setEncryptionLevel(ESP_BLE_SEC_ENCRYPT);  // Set encryption level to ESP_BLE_SEC_ENCRYPT
@@ -174,6 +175,7 @@ void BLEProximity::begin() {
 
   pService = pServer->createService(SERVICE_UUID);  // Immediate Alert Service (Proximity)
 
+  DPRINTF(0, " Init BLE Characteristics");
   rwCharacteristic = pService->createCharacteristic(
       COMMAND_UUID,  // Alert Notification Control Point - Commands characteristic
       BLECharacteristic::PROPERTY_READ | BLECharacteristic::PROPERTY_WRITE);
@@ -190,10 +192,11 @@ void BLEProximity::begin() {
       SWITCH_UUID,  // Alert Status - Proximity Switch characteristic
       BLECharacteristic::PROPERTY_READ | BLECharacteristic::PROPERTY_NOTIFY);
   rSwitchCharacteristic->addDescriptor(new BLE2902());
-  notifyChar(rSwitchCharacteristic, switchState ? "OPEN" : "CLOSED");
+  // notifyChar(rSwitchCharacteristic, switchState ? "OPEN" : "CLOSED");
 
   pService->start();
 
+  DPRINTF(0, " Start BLE advertising")
   pAdvertising = BLEDevice::getAdvertising();                      // BLEDevice::getAdvertising();
   pAdvertising->addServiceUUID(pService->getUUID());               // Add the service UUID to advertising
   pAdvertising->setScanResponse(true);                             // Enable scan response
@@ -205,10 +208,14 @@ void BLEProximity::begin() {
   delay(100);  // small delay to ensure advertising starts
 
   // Additional init steps
+  DPRINTF(0, " Pin Command Queue thread to Core 0")
   if (!sSwitchQueue) {
+    DPRINTF(0, "  Creating Queue");
     sSwitchQueue = xQueueCreate(8, sizeof(SwitchMsg));
   }
   if (sSwitchQueue && !sSwitchTask) {
+    DPRINTF(0, "  Creating Task for Core 0");
+
     /**
      * Switch Notification Task
      * Core 0: System CPU, mostly used for system tasks
@@ -216,12 +223,14 @@ void BLEProximity::begin() {
      */
     xTaskCreatePinnedToCore(SwitchNotifyTask, "SwitchNotifyTask", 4096, nullptr, 5, &sSwitchTask, 0 /* Core 0 */);
   }
-  delay(100);  // small delay to ensure task is started
-
   // ProximitySecurity::printBondedDevices();
 
-  setSwitchState(switchState);  // Ensure physical pin matches initial state
+  DPRINTF(0, " Ensure physical pin matches initial state")
+  setSwitchState(switchState ? "open" : "close");  // Ensure physical pin matches initial state
 
+  delay(100);  // small delay to ensure task is started
+
+  DPRINTF(0, " BLE Init Finished...")
   DPRINTF(1,
           "Bluetooth Low Energy Service started\n\t"
           "Open Bluetooth settings and pair with: %s",
@@ -237,7 +246,7 @@ void BLEProximity::begin() {
  * at any given time.
  */
 void BLEProximity::poll() {
-  DPRINTF(0, "BLEProximity::poll()");
+  // DPRINTF(0, "BLEProximity::poll()");
   if (!device.isAuthenticated) {
     return;
   }
@@ -344,8 +353,6 @@ void BLEProximity::setSwitchState(const std::string& value) {
   if (value == "toggle")
     target = !switchState;
 
-  // notifyChar(rwCharacteristic, stateToStr(target));
-
   // Non-momentary: direct notify via task
   if (value == "open" || value == "close" || value == "toggle") {
     enqueueSwitch(target, 0);
@@ -367,21 +374,6 @@ void BLEProximity::setSwitchState(const std::string& value) {
 }
 
 /**
- * @brief Sets the switch state based on a boolean value.
- *
- * This method converts the boolean value to a corresponding string command
- * ("OPEN" for true, "CLOSED" for false) and calls the string-based
- * `setSwitchState` method to update the switch state accordingly.
- *
- * @param value Boolean value representing the desired switch state.
- *              - true: Switch should be set to "OPEN".
- *              - false: Switch should be set to "CLOSED".
- */
-void BLEProximity::setSwitchState(bool value) {
-  setSwitchState(value ? "OPEN" : "CLOSED");
-}
-
-/**
  * @brief Callback invoked when a BLE client connects to the server.
  *
  * This method handles the connection event by updating the device state and logging
@@ -392,7 +384,7 @@ void BLEProximity::setSwitchState(bool value) {
  * @param param Pointer to the parameters associated with the connection event.
  */
 void BLEProximity::onConnect(BLEServer* pServer, esp_ble_gatts_cb_param_t* param) {
-  DPRINTF(0, "onConnect");
+  DPRINTF(0, "BLEProximity::onConnect");
   device.data.mac = BLEAddress(param->connect.remote_bda).toString();
   DPRINTF(1, "Device connected: %s", device.data.mac.c_str());
   deviceConnected = true;
@@ -410,7 +402,7 @@ void BLEProximity::onConnect(BLEServer* pServer, esp_ble_gatts_cb_param_t* param
  * @param param Pointer to the parameters associated with the disconnection event.
  */
 void BLEProximity::onDisconnect(BLEServer* pServer, esp_ble_gatts_cb_param_t* param) {
-  DPRINTF(0, "onDisconnect()");
+  DPRINTF(0, "BLEProximity::onDisconnect()");
   deviceConnected = false;
 
   rwCharacteristic->setValue(device.data.on_disconnect_command.c_str());     // Set the command characteristic value
@@ -486,6 +478,7 @@ void BLEProximity::handleGAPEvent(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_p
 }
 
 void BLEProximity::disconnectAll() {
+  DPRINTF(0, "BLEProximity::disconnectAll()");
   if (pServer) {
     pServer->disconnect(0);  // Disconnect all connected clients
   }
@@ -509,12 +502,12 @@ void ProximitySecurity::onPassKeyNotify(uint32_t passkey) {
 }
 
 bool ProximitySecurity::onConfirmPIN(uint32_t passkey) {
-  DPRINTF(1, "Confirming passkey: %06u", passkey);
+  DPRINTF(0, "Confirming passkey: %06u", passkey);
   return true;
 }
 
 bool ProximitySecurity::onSecurityRequest() {
-  DPRINTF(1, "Security request received");
+  DPRINTF(0, "Security request received");
   return true;
 }
 
@@ -522,6 +515,7 @@ bool ProximitySecurity::onSecurityRequest() {
 ProximitySecurity::PasskeyNotifyHandler ProximitySecurity::s_passkeyHandler = nullptr;
 /** Set the passkey notify handler */
 void ProximitySecurity::setPasskeyNotifyHandler(PasskeyNotifyHandler handler) {
+  DPRINTF(0, "ProximitySecurity::setPasskeyNotifyHandler()");
   s_passkeyHandler = handler;
 }
 
