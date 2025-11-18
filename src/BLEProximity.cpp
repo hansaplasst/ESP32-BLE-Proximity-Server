@@ -175,10 +175,10 @@ void BLEProximity::begin() {
 
   BLEDevice::setCustomGapHandler(gapEventHandler);
 
-  pServer = BLEDevice::createServer();
-  pServer->setCallbacks(this);
+  bleServer = BLEDevice::createServer();
+  bleServer->setCallbacks(this);
 
-  pService = pServer->createService(SERVICE_UUID);  // Immediate Alert Service (Proximity)
+  pService = bleServer->createService(SERVICE_UUID);  // Immediate Alert Service (Proximity)
 
   DPRINTF(0, " Init BLE Characteristics");
   rwCharacteristic = pService->createCharacteristic(
@@ -482,8 +482,8 @@ void BLEProximity::handleGAPEvent(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_p
 
 void BLEProximity::disconnectAll() {
   DPRINTF(0, "BLEProximity::disconnectAll()");
-  if (pServer) {
-    pServer->disconnect(0);  // Disconnect all connected clients
+  if (bleServer) {
+    bleServer->disconnect(0);  // Disconnect all connected clients
   }
 }
 
@@ -802,11 +802,13 @@ void CommandCallback::onWrite(BLECharacteristic* pChar, esp_ble_gatts_cb_param_t
   DPRINTF(0, "onWrite()");
   if (!bleProx->device.data.paired) {
     DPRINTF(3, "Illegal write attempt: device not paired");
+    bleProx->onDisconnect(bleProx->bleServer, nullptr);
     return;
   }
 
   if (bleProx->device.data.isBlocked) {
     DPRINTF(3, "Illegal write attempt: device is blocked");
+    bleProx->onDisconnect(bleProx->bleServer, nullptr);
     return;
   }
 
