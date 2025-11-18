@@ -37,9 +37,9 @@ class BLEProximity : public BLEServerCallbacks {
   void disconnectAll();
 
   ProximityDevice device;
-  BLEServer* bleServer = nullptr;
 
  private:
+  BLEServer* pBLEServer = nullptr;
   BLEService* pService = nullptr;
   BLEAdvertising* pAdvertising = nullptr;
   esp_ble_sec_act_t encryptionLevel;
