@@ -84,6 +84,26 @@ ProximityDevice::~ProximityDevice() {
   }
 }
 
+void ProximityDevice::resetRuntimeState() {
+  // Reset Flags
+  triggerUpdateJson = false;
+  isAuthenticated = false;
+  rssiExecutedTimeStamp = 0;
+
+  // Eventueel ook de data resetten (zoals je bij remove() doet, maar zonder JSON te wijzigen)
+  data.deviceID.clear();
+  data.name = "unknown";
+  data.mac.clear();
+  data.paired = false;
+  data.isBlocked = false;
+  data.isAdmin = false;
+  data.rssi_threshold = -100;
+  data.momSwitchDelay = 300;
+  data.rssi_command = "momOpen";
+  data.rssi_command_delay = 5;
+  data.on_disconnect_command = "close";
+}
+
 /**
  * @brief Adds or updates the data entry in the JSON file.
  *

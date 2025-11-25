@@ -408,11 +408,11 @@ void BLEProximity::onDisconnect(BLEServer* pServer, esp_ble_gatts_cb_param_t* pa
   DPRINTF(0, "BLEProximity::onDisconnect()");
   deviceConnected = false;
 
-  rwCharacteristic->setValue(device.data.on_disconnect_command.c_str());     // Set the command characteristic value
-  if (commandCallback) commandCallback->onWrite(rwCharacteristic, nullptr);  // Call onWrite to handle the command
+  rwCharacteristic->setValue(device.data.on_disconnect_command.c_str());     // Set the disconnect command value
+  if (commandCallback) commandCallback->onWrite(rwCharacteristic, nullptr);  // Process the command
   DPRINTF(1, "Device disconnected: %s (%s)\n\tadvertising restarted\n", device.data.name.c_str(), device.data.mac.c_str());
   delay(500);
-  device = {};  // Reset all fields to default
+  device.resetRuntimeState();  // Reset device to it's initial state
   pAdvertising->start();
 }
 
@@ -557,8 +557,8 @@ void ProximitySecurity::onAuthenticationComplete(esp_ble_auth_cmpl_t cmpl) {
       DPRINTF(2, "No bonded key found for device: %s", macStr.c_str());
       return;
     }
-    // TODO: do not log hashed key in production for security reasons
-    // DPRINTF(0, "Mac %s Peer key: %s", macStr.c_str(), hashedKey.c_str());
+
+    // DPRINTF(0, "Mac %s Peer key: %s", macStr.c_str(), hashedKey.c_str()); // Do NOT log hashed key in production for security reasons
     if (!device.get(hashedKey)) {
       DPRINTF(1, "Device not found in JSON, creating new device");
       device.data.deviceID = hashedKey;
@@ -800,6 +800,12 @@ void ProximitySecurity::removeBondedDevice(esp_bd_addr_t mac) {
  */
 void CommandCallback::onWrite(BLECharacteristic* pChar, esp_ble_gatts_cb_param_t* param) {
   DPRINTF(0, "onWrite()");
+  if (!param) {
+    DPRINTF(0, " Called internally (e.g. param == nullptr)");
+    // Called internally (e.g. from onDisconnect)
+    // handle only pChar->getValue() cases
+  }
+
   if (!bleProx->device.data.paired) {
     DPRINTF(3, "Illegal write attempt: device not paired");
     return;

@@ -46,10 +46,13 @@ class ProximityDevice {
  public:
   ProximityDevice(const char* jsonFileName = "/authorized_devices.json");
   ~ProximityDevice();
+  ProximityDevice(const ProximityDevice&) = delete;             // Don't allow copies
+  ProximityDevice& operator=(const ProximityDevice&) = delete;  // Don't allow copies
 
   // Device Information
   ProximityData data;
 
+  void resetRuntimeState();               // Resets the device to the inital state
   bool update();                          // Adds or updates data entry in the JSON file
   bool remove();                          // deletes data entry from JSON and clears resets the data entry to default
   bool triggerUpdateJson = false;         // Helper to trigger update in callback functions
