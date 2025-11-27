@@ -44,7 +44,14 @@ struct ProximityData {
 
 class ProximityDevice {
  public:
-  ProximityDevice(const char* jsonFileName = "/authorized_devices.json");
+  /**
+   * @brief Constructs a ProximityDevice object and sets the device name, fileSystem and device settings file
+   *
+   * @param deviceName   Name of the Proximity Server
+   * @param fileSyatem   LittleFS file system handle. Used for storing BLE device settings in a json file
+   * @param jsonFileName The name of the JSON file to use for device settings.
+   */
+  ProximityDevice(std::string name = "BLE Proximity Server", fs::LittleFSFS& fileSystem = LittleFS, const char* jsonFileName = "/authorized_devices.json");
   ~ProximityDevice();
   ProximityDevice(const ProximityDevice&) = delete;             // Don't allow copies
   ProximityDevice& operator=(const ProximityDevice&) = delete;  // Don't allow copies
@@ -52,6 +59,27 @@ class ProximityDevice {
   // Device Information
   ProximityData data;
 
+  /**
+   * @brief Initializes the ProximityDevice switch, file system, base path, maximum open files and partition label.
+   *
+   * begin() attempts to mount the LittleFS file system. If mounting fails, it tries to format the file system.
+   * It then attempts to open the JSON device settings file (@see constructor). If the file does not exist, it creates
+   * a new file with an empty JSON object.
+   *
+   * begin() then attempts to deserialize the JSON content. If deserialization fails, it resets the file with an
+   * empty JSON object and retries. Diagnostic messages are printed throughout the process.
+   *
+   * @param switchPin      Switch Pin to make HIGH/LOW. Default GPIO_NUM_18
+   * @param formatOnFail   Format file system on fail. Default false
+   * @param basePath       File system base path. Default "/littlefs"
+   * @param maxOpenFiles   Maximum open files. Default 10
+   * @param partitionLabel File system partition label. Default "spiffs"
+   */
+  bool begin(gpio_num_t switchPin = GPIO_NUM_18, bool formatOnFail = false,
+             const char* basePath = "/littlefs", uint8_t maxOpenFiles = (uint8_t)10U,
+             const char* partitionLabel = "spiffs");  // Init
+
+  std::string name;                       // Name of the Proximity Server
   void resetRuntimeState();               // Resets the device to the inital state
   bool update();                          // Adds or updates data entry in the JSON file
   bool remove();                          // deletes data entry from JSON and clears resets the data entry to default
@@ -60,16 +88,17 @@ class ProximityDevice {
   bool get(const std::string& deviceID);  // Retrieves device from JSON if exists and updates data struct
   void setAdmin(bool value);              // set data.isAdmin to value and updates json
   std::string printJsonFile();            // Prints the contents of json file to INFO (1)
-  void setSwitchPin(uint8_t pin);         // Sets the GPIO pin used for the switch
-  uint8_t getSwitchPin() const;           // Gets the GPIO pin used for the switch (default GPIO18)
+  gpio_num_t getSwitchPin() const;        // Gets the GPIO pin used for the switch (default GPIO18)
+  fs::LittleFSFS& getFSHandle();          // return the file system handle
 
   SemaphoreHandle_t mutex;             // Mutex
   uint32_t rssiExecutedTimeStamp = 0;  // Timestamp of last rssi command sent (in millis).
 
  private:
   const char* fileName;
+  fs::LittleFSFS& fSys;
   File jsonFile;
   JsonDocument jsonDocument;
-  uint8_t switch_pin = GPIO_NUM_18;  // GPIO pin for the switch (default to GPIO18)
+  gpio_num_t switch_pin = GPIO_NUM_18;  // GPIO pin for the switch (default to GPIO18)
 };
 #endif

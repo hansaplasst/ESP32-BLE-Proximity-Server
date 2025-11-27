@@ -22,7 +22,8 @@ static BLECharacteristic* rProximityCharacteristic = nullptr;  // Characteristic
 
 class BLEProximity : public BLEServerCallbacks {
  public:
-  BLEProximity(const char* deviceName = "BLE Proximity Server", uint8_t switchPin = GPIO_NUM_18);
+  BLEProximity(ProximityDevice& dev);  // BLEProximity instance and set ProximityDevice
+
   void begin();
   void poll();
 
@@ -36,14 +37,13 @@ class BLEProximity : public BLEServerCallbacks {
   void handleGAPEvent(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t* param);
   void disconnectAll();
 
-  ProximityDevice device;
+  ProximityDevice& device;
 
  private:
   BLEServer* pBLEServer = nullptr;
   BLEService* pService = nullptr;
   BLEAdvertising* pAdvertising = nullptr;
   esp_ble_sec_act_t encryptionLevel;
-  std::string device_name;
 
   bool rssiRequestInProgress = false;  // true as long as there is a read_rssi in progress
   uint32_t lastRssiRequestMs = 0;      // timestamp of the last request (millis)

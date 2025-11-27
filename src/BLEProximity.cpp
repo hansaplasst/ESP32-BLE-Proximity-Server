@@ -115,30 +115,10 @@ void gapEventHandler(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t* param
 }
 
 /**
- * Construct a BLEProximity instance.
- *
- * Initializes the instance with a BLE device name and configures the
- * hardware switch pin on the internal device object.
- *
- * @param deviceName
- *   Null-terminated C-string containing the BLE device name. The pointer is
- *   stored as-is in the device_name member; the caller is responsible for
- *   ensuring the string remains valid for the lifetime of this object.
- *
- * @param switchPin
- *   GPIO pin number used for the proximity switch. This value is forwarded to
- *   device.setSwitchPin() to configure the underlying hardware abstraction.
- *
- * Side effects:
- * - device_name is set to deviceName.
- * - device.setSwitchPin(switchPin) is invoked.
+ * @brief Construct a BLEProximity instance and set ProximityDevice
  */
-BLEProximity::BLEProximity(const char* deviceName, uint8_t switchPin) {
-  DPRINTF(0, "BLEProximity(%s)", deviceName);
-
-  device_name = deviceName;
-  device.setSwitchPin(switchPin);
-  DPRINTF(0, "Switch pin initialized: GPIO%d", device.getSwitchPin());
+BLEProximity::BLEProximity(ProximityDevice& dev) : device(dev) {
+  DPRINTF(0, "BLEProximity(%s)", dev.name.c_str());
 }
 
 /**
@@ -158,7 +138,7 @@ void BLEProximity::begin() {
   initialized = true;
 
   DPRINTF(0, " BLE Init Start");
-  BLEDevice::init(device_name.c_str());
+  BLEDevice::init(device.name.c_str());
 
   BLEDevice::setEncryptionLevel(ESP_BLE_SEC_ENCRYPT);  // Set encryption level to ESP_BLE_SEC_ENCRYPT
   BLEDevice::setSecurityCallbacks(new ProximitySecurity(device));
@@ -241,7 +221,7 @@ void BLEProximity::begin() {
   DPRINTF(1,
           "Bluetooth Low Energy Service started\n\t"
           "Open Bluetooth settings and pair with: %s",
-          device_name.c_str());
+          device.name.c_str());
 }
 
 /**
@@ -927,13 +907,14 @@ void CommandCallback::onWrite(BLECharacteristic* pChar, esp_ble_gatts_cb_param_t
     }
 
     // Format the LittleFS if requested
+    // TODO: FIX if multiple partitions are used
     if (value == "format" && bleProx->device.data.isAdmin) {
-      if (!LittleFS.format()) {
+      if (!bleProx->device.getFSHandle().format()) {
         notifyChar(rwCharacteristic, "Format failed");
-        DPRINTF(3, "Failed to format LittleFS\n");
+        DPRINTF(3, "Failed to format file system\n");
       } else {
-        notifyChar(rwCharacteristic, "LittleFS formatted successfully");
-        DPRINTF(0, "LittleFS formatted successfully");
+        notifyChar(rwCharacteristic, "File system formatted successfully");
+        DPRINTF(0, "File system formatted successfully");
         ProximitySecurity::removeBondedDevices();
       }
     } else if (value == "format") {

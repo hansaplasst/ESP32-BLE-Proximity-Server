@@ -3,78 +3,20 @@
 #include <dprintf.h>
 
 /**
- * @brief Constructs a ProximityDevice object and initializes the device's configuration from a JSON file stored in LittleFS.
+ * @brief Constructs a ProximityDevice object and sets the device name, fileSystem and device settings file
  *
- * This constructor attempts to mount the LittleFS file system. If mounting fails, it tries to format the file system.
- * It then attempts to open the specified JSON configuration file. If the file does not exist, it creates a new file with an empty JSON object.
- * The constructor then attempts to deserialize the JSON content into the internal document. If deserialization fails,
- * it resets the file with an empty JSON object and retries. Diagnostic messages are printed throughout the process.
- *
- * @param jsonFileName The name of the JSON file to use for device configuration.
+ * @param deviceName   Name of the Proximity Server
+ * @param fileSyatem   LittleFS file system handle. Used for storing BLE device settings in a json file
+ * @param jsonFileName The name of the JSON file to use for device settings.
  */
-ProximityDevice::ProximityDevice(const char* jsonFileName) : fileName(jsonFileName) {
-  DPRINTF(0, "ProximityDevice()");
-
-  mutex = xSemaphoreCreateMutex();
-  if (!mutex) {
-    DPRINTF(3, "Failed to create mutex!");
-    return;
-  }
-
-  // Checking LittleFS file system
-  if (!LittleFS.begin()) {
-    DPRINTF(3, "Failed to mount LittleFS\n");
-    if (!LittleFS.format()) {
-      DPRINTF(3, "Failed to format LittleFS\n");
-      return;
-    } else {
-      DPRINTF(0, "LittleFS formatted successfully");
-    }
-  } else {
-    DPRINTF(0, "LittleFS mounted successfully");
-  }
-
-  if (!fileName) {
-    DPRINTF(3, "File name needed. Got %s", fileName);
-    return;
-  }
-
-  jsonFile = LittleFS.open(fileName, "r");
-  if (!jsonFile) {
-    DPRINTF(3, "Failed to read file: %s.\n Trying to create.", fileName);
-    jsonFile = LittleFS.open(fileName, "w");
-    if (!jsonFile) {
-      DPRINTF(3, " Fail..");
-      return;
-    } else {
-      jsonFile.print("{}");
-      jsonFile.close();
-      DPRINTF(1, " Success.")
-    }
-  }
-
-  jsonFile = LittleFS.open(fileName, "rw");
-  if (!jsonFile) {
-    DPRINTF(3, "This should not happen!!!");
-    return;
-  }
-
-  DeserializationError err = deserializeJson(jsonDocument, jsonFile);  // Try to read JSON
-  if (err) {
-    DPRINTF(2, "JSON read error: %s. Start with empty doc.", err.c_str());
-    jsonFile.print("{}");
-  }
-
-  jsonFile.seek(0);                                        // reset to start of file
-  if (err) err = deserializeJson(jsonDocument, jsonFile);  // retry to read JSON again
-  if (err) {
-    DPRINTF(3, "JSON read error: %s. File is not JSON.", err.c_str());
-  }
-  jsonFile.close();
+ProximityDevice::ProximityDevice(std::string deviceName,
+                                 fs::LittleFSFS& fileSystem,
+                                 const char* jsonFileName) : name(deviceName), fSys(fileSystem), fileName(jsonFileName) {
+  DPRINTF(0, "ProximityDevice::ProximityDevice()");
 }
 
 ProximityDevice::~ProximityDevice() {
-  DPRINTF(0, "~ProximityDevice()");
+  DPRINTF(0, "ProximityDevice::~ProximityDevice()");
   if (jsonFile) {
     jsonFile.close();
   }
@@ -84,7 +26,98 @@ ProximityDevice::~ProximityDevice() {
   }
 }
 
+/**
+ * @brief Initializes the ProximityDevice switch, file system, base path, maximum open files and partition label.
+ *
+ * begin() attempts to mount the LittleFS file system. If mounting fails, it tries to format the file system.
+ * It then attempts to open the JSON device settings file (@see constructor). If the file does not exist, it creates
+ * a new file with an empty JSON object.
+ *
+ * begin() then attempts to deserialize the JSON content. If deserialization fails, it resets the file with an
+ * empty JSON object and retries. Diagnostic messages are printed throughout the process.
+ *
+ * @param switchPin      Switch Pin to make HIGH/LOW. Default GPIO_NUM_18
+ * @param formatOnFail   Format file system on fail. Default false
+ * @param basePath       File system base path. Default "/littlefs"
+ * @param maxOpenFiles   Maximum open files. Default 10
+ * @param partitionLabel File system partition label. Default "spiffs"
+ */
+bool ProximityDevice::begin(gpio_num_t switchPin, bool formatOnFail,
+                            const char* basePath, uint8_t maxOpenFiles,
+                            const char* partitionLabel) {
+  DPRINTF(0, "ProximityDevice::begin");
+
+  switch_pin = switchPin;
+  pinMode(switch_pin, OUTPUT);
+
+  mutex = xSemaphoreCreateMutex();
+  if (!mutex) {
+    DPRINTF(3, "Failed to create mutex!");
+    return false;
+  }
+
+  // Checking file system
+  if (!fSys.begin(formatOnFail, basePath, maxOpenFiles, partitionLabel)) {
+    DPRINTF(3, "Failed to mount %s, trying to format...\n", basePath);
+    if (!fSys.format()) {
+      DPRINTF(3, "Failed to format LittleFS\n");
+      return false;
+    }
+    DPRINTF(1, "%s formatted successfully, remounting...", basePath);
+    if (!fSys.begin(formatOnFail, basePath, maxOpenFiles, partitionLabel)) {
+      DPRINTF(3, "Remount after format failed\n");
+      return false;
+    }
+  } else {
+    DPRINTF(1, "%s mounted successfully", basePath);
+  }
+
+  if (!fileName) {
+    DPRINTF(3, "File name needed. Got %s", fileName);
+    return false;
+  }
+
+  jsonFile = fSys.open(fileName, "r");
+  if (!jsonFile) {
+    DPRINTF(3, "Failed to read file: %s.\n Trying to create.", fileName);
+    jsonFile = fSys.open(fileName, "w");
+    if (!jsonFile) {
+      DPRINTF(3, " Fail..");
+      return false;
+    }
+    jsonFile.print("{}");
+    jsonFile.close();
+    DPRINTF(1, " Success.");
+    jsonFile = fSys.open(fileName, "r");
+  }
+  jsonFile.close();
+
+  jsonFile = fSys.open(fileName, "rw");
+  if (!jsonFile) {
+    DPRINTF(3, "This should not happen!!!");
+    return false;
+  }
+
+  DeserializationError err = deserializeJson(jsonDocument, jsonFile);  // Try to read JSON
+  if (err) {
+    DPRINTF(3, "JSON read error: %s. Start with empty doc.", err.c_str());
+    jsonFile.print("{}");
+  }
+
+  jsonFile.seek(0);                                        // reset to start of file
+  if (err) err = deserializeJson(jsonDocument, jsonFile);  // retry to read JSON again
+  if (err) {
+    DPRINTF(3, "JSON read error: %s. File is not JSON.", err.c_str());
+    return false;
+  }
+  jsonFile.close();
+
+  return true;
+}
+
 void ProximityDevice::resetRuntimeState() {
+  DPRINTF(0, "ProximityDevice::resetRuntimeState");
+
   // Reset Flags
   triggerUpdateJson = false;
   isAuthenticated = false;
@@ -120,7 +153,7 @@ void ProximityDevice::resetRuntimeState() {
  */
 bool ProximityDevice::update() {
   triggerUpdateJson = false;
-  DPRINTF(0, "update(%s)", data.deviceID.c_str());
+  DPRINTF(0, "ProximityDevice::update(%s)", data.deviceID.c_str());
 
   if (!jsonDocument.is<JsonObject>()) {
     DPRINTF(3, "JSON document is not an object, creating new object");
@@ -148,8 +181,8 @@ bool ProximityDevice::update() {
   obj["rssi_command_delay"] = data.rssi_command_delay;
   obj["on_disconnect_command"] = data.on_disconnect_command;
 
-  // Wegschrijven naar bestand
-  jsonFile = LittleFS.open(fileName, "w");
+  // Write to file
+  jsonFile = fSys.open(fileName, "w");
   if (!jsonFile) {
     DPRINTF(3, "Failed to open file %s for writing", fileName);
     return false;  // Return if file cannot be opened
@@ -163,7 +196,7 @@ bool ProximityDevice::update() {
 }
 
 bool ProximityDevice::remove() {
-  DPRINTF(0, "remove(%s)", data.deviceID.c_str());
+  DPRINTF(0, "ProximityDevice::remove(%s)", data.deviceID.c_str());
 
   if (!jsonDocument.is<JsonObject>()) {
     DPRINTF(3, "JSON document is not an object");
@@ -190,7 +223,7 @@ bool ProximityDevice::remove() {
   data.rssi_command_delay = 5;
   data.on_disconnect_command = "close";
 
-  jsonFile = LittleFS.open(fileName, "w");
+  jsonFile = fSys.open(fileName, "w");
   if (!jsonFile) {
     DPRINTF(3, "Failed to open file %s for writing during delete", fileName);
     return false;
@@ -242,9 +275,9 @@ bool ProximityDevice::get(const std::string& deviceID) {
  * @return std::string The contents of the file as a string.
  */
 std::string ProximityDevice::printJsonFile() {
-  DPRINTF(0, "printJsonFile()");
+  DPRINTF(0, "ProximityDevice::printJsonFile");
 
-  jsonFile = LittleFS.open(fileName, "r");
+  jsonFile = fSys.open(fileName, "r");
   if (!jsonFile) {
     DPRINTF(3, "Could not open file %s for reading", fileName);
     return std::string();  // Return empty string if file cannot be opened
@@ -259,13 +292,12 @@ std::string ProximityDevice::printJsonFile() {
   return contents;
 }
 
-void ProximityDevice::setSwitchPin(uint8_t pin) {
-  pinMode(pin, OUTPUT);
-  switch_pin = pin;
+gpio_num_t ProximityDevice::getSwitchPin() const {
+  return switch_pin;
 }
 
-uint8_t ProximityDevice::getSwitchPin() const {
-  return switch_pin;
+fs::LittleFSFS& ProximityDevice::getFSHandle() {
+  return fSys;
 }
 
 /**
@@ -278,6 +310,7 @@ uint8_t ProximityDevice::getSwitchPin() const {
  * @param value Boolean value indicating if the device should be set as admin (true) or not (false).
  */
 void ProximityDevice::setAdmin(bool value) {
+  DPRINTF(0, "ProximityDevice::setAdmin");
   data.isAdmin = value;
   update();
 }
