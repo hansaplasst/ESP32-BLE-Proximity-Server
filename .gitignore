@@ -18,3 +18,4 @@ Thumbs.db
 *.code-workspace
 
 /src/main.cpp
+platformio.ini
