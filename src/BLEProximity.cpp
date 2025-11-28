@@ -234,7 +234,7 @@ void BLEProximity::begin() {
  */
 void BLEProximity::poll() {
   // DPRINTF(0, "BLEProximity::poll()");
-  checkSafetyTimeout();  // Failsafe check
+  checkFailsafeTimeout();  // Failsafe check
 
   if (!deviceConnected) return;
 
@@ -373,7 +373,7 @@ void BLEProximity::onConnect(BLEServer* pServer, esp_ble_gatts_cb_param_t* param
   device.data.mac = BLEAddress(param->connect.remote_bda).toString();
   DPRINTF(1, "Device connected: %s", device.data.mac.c_str());
   deviceConnected = true;
-  activeConnections++;
+  lastFailsafeActivityMs = millis();  // Activate failsafe
 }
 
 /**
@@ -391,8 +391,7 @@ void BLEProximity::onDisconnect(BLEServer* pServer, esp_ble_gatts_cb_param_t* pa
   DPRINTF(0, "BLEProximity::onDisconnect()");
 
   deviceConnected = false;
-  if (activeConnections > 0) activeConnections--;
-  if (activeConnections == 0) lastAllDisconnectedMs = millis();  // Activate failsafe
+  lastFailsafeActivityMs = millis();
 
   rwCharacteristic->setValue(device.data.on_disconnect_command.c_str());     // Set the disconnect command value
   if (commandCallback) commandCallback->onWrite(rwCharacteristic, nullptr);  // Process the command
@@ -469,37 +468,47 @@ void BLEProximity::handleGAPEvent(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_p
 void BLEProximity::disconnectAll() {
   DPRINTF(0, "BLEProximity::disconnectAll()");
   if (pBLEServer) {
+    delay(50);
     pBLEServer->disconnect(0);  // Disconnect all connected clients
   }
 }
 
-void BLEProximity::checkSafetyTimeout() {
-  if (!safetyMonitorEnabled) {
+void BLEProximity::setFailsafeTimeout(uint32_t sec) {
+  DPRINTF(0, "BLEProximity::setFailsafeTimeout(%ds)", sec);
+  failsafeMonitorEnabled = sec > 0 ? true : false;
+  lastFailsafeActivityMs = millis();
+  failsafeTimeoutMs = sec * 1000UL;
+}
+
+void BLEProximity::setFailsafeCommand(std::string& cmd) {
+  DPRINTF(0, "BLEProximity::setFailsafeCommand(%s)", cmd);
+  if (cmd == "open" || cmd == "close") failsafeCommand = cmd;
+}
+
+void BLEProximity::checkFailsafeTimeout() {
+  if (!failsafeMonitorEnabled) {
     return;
   }
 
-  // Zolang er devices connected zijn: niets doen
-  if (activeConnections > 0) {
-    return;
-  }
-
-  // Als er nog nooit een “alles disconnected”-moment is geweest: ook niets
-  if (lastAllDisconnectedMs == 0) {
+  if (lastFailsafeActivityMs == 0) {
     return;
   }
 
   uint32_t now = millis();
-  if (now - lastAllDisconnectedMs < safetyTimeoutMs) {
+  if (now - lastFailsafeActivityMs < failsafeTimeoutMs) {
     // Timeout not yet reached
     return;
   }
 
-  // No devices connected, timeout reached → deur/switch dicht
-  DPRINTF(1, "Safety timeout reached with no active connections → Switch to %s", safetyMonitorCommand);
-  setSwitchState(safetyMonitorCommand);
+  // Timeout reached → close/open switch
+  DPRINTF(1, "Safety monitor timeout reached. Disconnect all Switch → %s", failsafeCommand.c_str());
+  setSwitchState(failsafeCommand);
 
-  // Timer reset so we won't spamm
-  lastAllDisconnectedMs = 0;
+  if (deviceConnected) {
+    disconnectAll();
+    lastFailsafeActivityMs = millis();  // Fire one last time after all devices are disconnected
+  } else
+    lastFailsafeActivityMs = 0;  // Disable failsafe until a device connects
 }
 
 ProximitySecurity::ProximitySecurity(ProximityDevice& devData) : device(devData) {}
@@ -835,6 +844,8 @@ void CommandCallback::onWrite(BLECharacteristic* pChar, esp_ble_gatts_cb_param_t
   DPRINTF(0, "CommandCallback received: %s", value.c_str());
 
   if (value.length() > 0) {
+    bool isAdminMsg = false;
+
     bool bState = (value == "open" || value == "close" || value == "toggle" ||
                    value == "momOpen" || value == "momClose" || value == "status");
     bool bSetName = String(value.c_str()).startsWith("name=");                      // device name
@@ -843,7 +854,12 @@ void CommandCallback::onWrite(BLECharacteristic* pChar, esp_ble_gatts_cb_param_t
     bool bSetRssiDelay = String(value.c_str()).startsWith("rssiDelay=");            // RSSI command delay
     bool bSetDisconnectCmd = String(value.c_str()).startsWith("onDisconnectCmd=");  // on disconnect command
     bleProx->device.triggerUpdateJson = (value == "rssiUpdate");                    // RSSI update on next proximity event
-    bool isValidCommand = (bSetName || bState || bSetMomDelay || bSetRssiCmd || bSetRssiDelay || bSetDisconnectCmd || bleProx->device.triggerUpdateJson ||
+    bool bSetFailsafeCmd = String(value.c_str()).startsWith("failsafeCmd=");        // failsafe open/close
+    bool bSetFailsafeTimer = String(value.c_str()).startsWith("failsafeTimer=");    // failsafe timeout in sec
+    bool isValidCommand = (bSetName || bState || bSetMomDelay || bSetRssiCmd ||
+                           bSetRssiDelay || bSetDisconnectCmd ||
+                           bSetFailsafeCmd || bSetFailsafeTimer ||
+                           bleProx->device.triggerUpdateJson ||
                            value == "json" || value == "format" || value == "status");
 
     if (!isValidCommand) {
@@ -932,14 +948,51 @@ void CommandCallback::onWrite(BLECharacteristic* pChar, esp_ble_gatts_cb_param_t
       DPRINTF(1, "onDisconnectCmd set to: %s", newCmd.c_str());
     }
 
+    if (bSetFailsafeCmd && bleProx->device.data.isAdmin) {
+      std::string cmd = value.substr(strlen("failsafeCmd="));  // after "failsafeCmd="
+
+      if (cmd != "open" && cmd != "close") {
+        notifyChar(rwCharacteristic, "Invalid failsafeCmd (use 'open' or 'close')");
+        DPRINTF(3, "Invalid failsafeCmd: %s", cmd.c_str());
+        return;
+      }
+
+      bleProx->setFailsafeCommand(cmd);
+      notifyChar(rwCharacteristic, ("failsafeCmd set to: " + cmd).c_str());
+      DPRINTF(1, "failsafeCmd set to: %s", cmd.c_str());
+    } else if (bSetFailsafeCmd)
+      isAdminMsg = true;
+
+    if (bSetFailsafeTimer && bleProx->device.data.isAdmin) {
+      const char* s = value.c_str() + strlen("failsafeTimer=");  // after "failsafeTimer="
+      char* endp = nullptr;
+      long sec = strtol(s, &endp, 10);
+
+      if (endp == s || sec < 0 || sec > 86400L) {  // max 24 hours
+        notifyChar(rwCharacteristic, "Invalid failsafeTimer value");
+        DPRINTF(3, "Invalid failsafeTimer payload: %s", value.c_str());
+        return;
+      }
+
+      bleProx->setFailsafeTimeout((uint32_t)sec);
+
+      if (sec == 0) {
+        notifyChar(rwCharacteristic, "Failsafe disabled (timer=0)");
+        DPRINTF(1, "Failsafe disabled via failsafeTimer=0");
+      } else {
+        std::string msg = "Failsafe timer set to " + std::to_string(sec) + " sec";
+        notifyChar(rwCharacteristic, msg.c_str());
+        DPRINTF(1, msg.c_str());
+      }
+    } else if (bSetFailsafeTimer)
+      isAdminMsg = true;
+
     // Publish the JSON file if requested
     if (value == "json" && bleProx->device.data.isAdmin) {
       bleProx->device.printJsonFile();  // TODO: Do NOT enable this in production, it's insecure!
       notifyChar(rwCharacteristic, "Disabled for security reasons");
-    } else if (value == "json") {
-      notifyChar(rwCharacteristic, "Only admin can do that");
-      DPRINTF(3, "json command denied: not an admin device");
-    }
+    } else if (value == "json")
+      isAdminMsg = true;
 
     // Format the LittleFS if requested
     // TODO: FIX if multiple partitions are used
@@ -952,9 +1005,13 @@ void CommandCallback::onWrite(BLECharacteristic* pChar, esp_ble_gatts_cb_param_t
         DPRINTF(0, "File system formatted successfully");
         ProximitySecurity::removeBondedDevices();
       }
-    } else if (value == "format") {
-      notifyChar(rwCharacteristic, "Only admin can do that");
-      DPRINTF(3, "Format command denied: not an admin device");
+    } else if (value == "format")
+      isAdminMsg = true;
+
+    if (isAdminMsg) {
+      std::string msg = "Only admin can do that";
+      notifyChar(rwCharacteristic, msg.c_str());
+      DPRINTF(3, msg.c_str());
     }
   }
 }
