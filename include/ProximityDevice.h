@@ -81,24 +81,24 @@ class ProximityDevice {
              const char* basePath = "/littlefs", uint8_t maxOpenFiles = (uint8_t)10U,
              const char* partitionLabel = "spiffs");  // Init
 
-  std::string name;                       // Name of the Proximity Server
-  void resetRuntimeState();               // Resets the device to the inital state
-  bool update();                          // Adds or updates data entry in the JSON file
-  bool remove();                          // deletes data entry from JSON and clears resets the data entry to default
-  bool triggerUpdateJson = false;         // Helper to trigger update in callback functions
-  bool isAuthenticated = false;           // True if device is authenticated, else false
-  bool get(const std::string& deviceID);  // Retrieves device from JSON if exists and updates data struct
-  void setAdmin(bool value);              // set data.isAdmin to value and updates json
-  std::string printJsonFile();            // Prints the contents of json file to INFO (1)
-  gpio_num_t getSwitchPin() const;        // Gets the GPIO pin used for the switch (default GPIO18)
-  fs::LittleFSFS& getFSHandle();          // return the file system handle
+  std::string name;                                     // Name of the Proximity Server
+  void resetRuntimeState();                             // Resets the device to the inital state
+  bool update();                                        // Adds or updates data entry in the JSON file
+  bool remove();                                        // deletes data entry from JSON and clears resets the data entry to default
+  bool triggerUpdateJson = false;                       // Helper to trigger update in callback functions
+  bool isAuthenticated = false;                         // True if device is authenticated, else false
+  bool get(const std::string& deviceID);                // Retrieves device from JSON if exists and updates data struct
+  bool reloadDevice(const std::string& deviceID = "");  // Update device data from json
+  void setAdmin(bool value);                            // set data.isAdmin to value and updates json
+  std::string printJsonFile();                          // Prints the contents of json file to INFO (1)
+  gpio_num_t getSwitchPin() const;                      // Gets the GPIO pin used for the switch (default GPIO18)
+  fs::LittleFSFS& getFSHandle();                        // return the file system handle
 
   SemaphoreHandle_t mutex;             // Mutex
   uint32_t rssiExecutedTimeStamp = 0;  // Timestamp of last rssi command sent (in millis).
 
  private:
-  bool reloadFromFile(const std::string& deviceID = "");  // Update device data from json
-  const char* fileName;
+  const char* devicesFile;
   fs::LittleFSFS& fSys;
   File jsonFile;
   JsonDocument jsonDocument;

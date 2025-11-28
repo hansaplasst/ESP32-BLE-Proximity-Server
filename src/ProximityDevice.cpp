@@ -11,7 +11,7 @@
  */
 ProximityDevice::ProximityDevice(std::string deviceName,
                                  fs::LittleFSFS& fileSystem,
-                                 const char* jsonFileName) : name(deviceName), fSys(fileSystem), fileName(jsonFileName) {
+                                 const char* jsonFileName) : name(deviceName), fSys(fileSystem), devicesFile(jsonFileName) {
   DPRINTF(0, "ProximityDevice::ProximityDevice()");
 }
 
@@ -74,15 +74,15 @@ bool ProximityDevice::begin(gpio_num_t switchPin, bool formatOnFail,
     DPRINTF(0, "%s mounted successfully", basePath);
   }
 
-  if (!fileName) {
-    DPRINTF(3, "File name needed. Got %s", fileName);
+  if (!devicesFile) {
+    DPRINTF(3, "File name needed. Got %s", devicesFile);
     return false;
   }
 
-  jsonFile = fSys.open(fileName, "r");
+  jsonFile = fSys.open(devicesFile, "r");
   if (!jsonFile) {
-    DPRINTF(3, "Failed to read file: %s.\n Trying to create.", fileName);
-    jsonFile = fSys.open(fileName, "w");
+    DPRINTF(3, "Failed to read file: %s.\n Trying to create.", devicesFile);
+    jsonFile = fSys.open(devicesFile, "w");
     if (!jsonFile) {
       DPRINTF(3, " Fail..");
       return false;
@@ -90,11 +90,11 @@ bool ProximityDevice::begin(gpio_num_t switchPin, bool formatOnFail,
     jsonFile.print("{}");
     jsonFile.close();
     DPRINTF(1, " Success.");
-    jsonFile = fSys.open(fileName, "r");
+    jsonFile = fSys.open(devicesFile, "r");
   }
   jsonFile.close();
 
-  jsonFile = fSys.open(fileName, "rw");
+  jsonFile = fSys.open(devicesFile, "rw");
   if (!jsonFile) {
     DPRINTF(3, "This should not happen!!!");
     return false;
@@ -151,7 +151,7 @@ void ProximityDevice::resetRuntimeState() {
  * 4. Writes the updated JSON document back to the file.
  *
  * @note The function assumes that LittleFS is mounted and available.
- * @note The file path is specified by fileName.
+ * @note The file path is specified by devicesFile.
  */
 bool ProximityDevice::update() {
   triggerUpdateJson = false;
@@ -184,16 +184,16 @@ bool ProximityDevice::update() {
   obj["on_disconnect_command"] = data.on_disconnect_command;
 
   // Write to file
-  jsonFile = fSys.open(fileName, "w");
+  jsonFile = fSys.open(devicesFile, "w");
   if (!jsonFile) {
-    DPRINTF(3, "Failed to open file %s for writing", fileName);
+    DPRINTF(3, "Failed to open file %s for writing", devicesFile);
     return false;  // Return if file cannot be opened
   }
 
   serializeJsonPretty(jsonDocument, jsonFile);  // TODO: Don't do pretty
   jsonFile.close();
 
-  DPRINTF(1, "JSON saved to %s", fileName);
+  DPRINTF(1, "JSON saved to %s", devicesFile);
   return true;
 }
 
@@ -225,23 +225,21 @@ bool ProximityDevice::remove() {
   data.rssi_command_delay = 5;
   data.on_disconnect_command = "close";
 
-  jsonFile = fSys.open(fileName, "w");
+  jsonFile = fSys.open(devicesFile, "w");
   if (!jsonFile) {
-    DPRINTF(3, "Failed to open file %s for writing during delete", fileName);
+    DPRINTF(3, "Failed to open file %s for writing during delete", devicesFile);
     return false;
   }
 
   serializeJsonPretty(jsonDocument, jsonFile);  // TODO: Don't do pretty
   jsonFile.close();
 
-  DPRINTF(1, "Device %s deleted from %s", data.deviceID.c_str(), fileName);
+  DPRINTF(1, "Device %s deleted from %s", data.deviceID.c_str(), devicesFile);
   return true;
 }
 
 bool ProximityDevice::get(const std::string& deviceID) {
   DPRINTF(0, "get(%s)", deviceID.c_str());
-
-  if (!reloadFromFile(deviceID)) return false;
 
   if (!jsonDocument.is<JsonObject>()) {
     DPRINTF(3, "JSON document is not an object");
@@ -271,7 +269,7 @@ bool ProximityDevice::get(const std::string& deviceID) {
 }
 
 /**
- * @brief Reads the entire contents of the fileName file and returns it as a std::string. *
+ * @brief Reads the entire contents of the devicesFile file and returns it as a std::string. *
  * This function seeks to the beginning of the provided file, reads all available bytes,
  * and appends them to a std::string. After reading, it resets the file pointer to the start.
  * It also logs debug information about the operation and the file contents.
@@ -281,9 +279,9 @@ bool ProximityDevice::get(const std::string& deviceID) {
 std::string ProximityDevice::printJsonFile() {
   DPRINTF(0, "ProximityDevice::printJsonFile");
 
-  jsonFile = fSys.open(fileName, "r");
+  jsonFile = fSys.open(devicesFile, "r");
   if (!jsonFile) {
-    DPRINTF(3, "Could not open file %s for reading", fileName);
+    DPRINTF(3, "Could not open file %s for reading", devicesFile);
     return std::string();  // Return empty string if file cannot be opened
   }
 
@@ -292,7 +290,7 @@ std::string ProximityDevice::printJsonFile() {
     contents += static_cast<char>(jsonFile.read());
   }
   jsonFile.close();
-  DPRINTF(1, "Contents of %s:\n%s", fileName, contents.c_str());
+  DPRINTF(1, "Contents of %s:\n%s", devicesFile, contents.c_str());
   return contents;
 }
 
@@ -304,17 +302,17 @@ fs::LittleFSFS& ProximityDevice::getFSHandle() {
   return fSys;
 }
 
-bool ProximityDevice::reloadFromFile(const std::string& deviceID) {
+bool ProximityDevice::reloadDevice(const std::string& deviceID) {
   std::string id = deviceID.empty() ? data.deviceID : deviceID;
 
-  if (!fileName) {
-    DPRINTF(3, "reloadFromFile: fileName is null");
+  if (!devicesFile) {
+    DPRINTF(3, "reloadDevice: devicesFile is null");
     return false;
   }
 
-  File f = fSys.open(fileName, "r");
+  File f = fSys.open(devicesFile, "r");
   if (!f) {
-    DPRINTF(3, "reloadFromFile: failed to open %s", fileName);
+    DPRINTF(3, "reloadDevice: failed to open %s", devicesFile);
     return false;
   }
 
@@ -323,7 +321,7 @@ bool ProximityDevice::reloadFromFile(const std::string& deviceID) {
   f.close();
 
   if (err) {
-    DPRINTF(3, "reloadFromFile: JSON read error: %s", err.c_str());
+    DPRINTF(3, "reloadDevice: JSON read error: %s", err.c_str());
     return false;
   }
 
@@ -331,6 +329,7 @@ bool ProximityDevice::reloadFromFile(const std::string& deviceID) {
     // Alleen JSON opnieuw geladen, geen specifieke device nodig
     return true;
   }
+  return get(id);
 }
 
 /**
