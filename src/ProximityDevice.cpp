@@ -6,7 +6,7 @@
  * @brief Constructs a ProximityDevice object and sets the device name, fileSystem and device settings file
  *
  * @param deviceName   Name of the Proximity Server
- * @param fileSyatem   LittleFS file system handle. Used for storing BLE device settings in a json file
+ * @param fileSystem   LittleFS file system handle. Used for storing BLE device settings in a json file
  * @param jsonFileName The name of the JSON file to use for device settings.
  */
 ProximityDevice::ProximityDevice(std::string deviceName,
@@ -41,6 +41,8 @@ ProximityDevice::~ProximityDevice() {
  * @param basePath       File system base path. Default "/littlefs"
  * @param maxOpenFiles   Maximum open files. Default 10
  * @param partitionLabel File system partition label. Default "spiffs"
+ *
+ * @return True on success else False
  */
 bool ProximityDevice::begin(gpio_num_t switchPin, bool formatOnFail,
                             const char* basePath, uint8_t maxOpenFiles,
@@ -69,7 +71,7 @@ bool ProximityDevice::begin(gpio_num_t switchPin, bool formatOnFail,
       return false;
     }
   } else {
-    DPRINTF(1, "%s mounted successfully", basePath);
+    DPRINTF(0, "%s mounted successfully", basePath);
   }
 
   if (!fileName) {
@@ -239,6 +241,8 @@ bool ProximityDevice::remove() {
 bool ProximityDevice::get(const std::string& deviceID) {
   DPRINTF(0, "get(%s)", deviceID.c_str());
 
+  if (!reloadFromFile(deviceID)) return false;
+
   if (!jsonDocument.is<JsonObject>()) {
     DPRINTF(3, "JSON document is not an object");
     return false;
@@ -298,6 +302,35 @@ gpio_num_t ProximityDevice::getSwitchPin() const {
 
 fs::LittleFSFS& ProximityDevice::getFSHandle() {
   return fSys;
+}
+
+bool ProximityDevice::reloadFromFile(const std::string& deviceID) {
+  std::string id = deviceID.empty() ? data.deviceID : deviceID;
+
+  if (!fileName) {
+    DPRINTF(3, "reloadFromFile: fileName is null");
+    return false;
+  }
+
+  File f = fSys.open(fileName, "r");
+  if (!f) {
+    DPRINTF(3, "reloadFromFile: failed to open %s", fileName);
+    return false;
+  }
+
+  jsonDocument.clear();
+  DeserializationError err = deserializeJson(jsonDocument, f);
+  f.close();
+
+  if (err) {
+    DPRINTF(3, "reloadFromFile: JSON read error: %s", err.c_str());
+    return false;
+  }
+
+  if (id.empty()) {
+    // Alleen JSON opnieuw geladen, geen specifieke device nodig
+    return true;
+  }
 }
 
 /**

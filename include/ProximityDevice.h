@@ -74,6 +74,8 @@ class ProximityDevice {
    * @param basePath       File system base path. Default "/littlefs"
    * @param maxOpenFiles   Maximum open files. Default 10
    * @param partitionLabel File system partition label. Default "spiffs"
+   *
+   * @return True on success else False
    */
   bool begin(gpio_num_t switchPin = GPIO_NUM_18, bool formatOnFail = false,
              const char* basePath = "/littlefs", uint8_t maxOpenFiles = (uint8_t)10U,
@@ -95,6 +97,7 @@ class ProximityDevice {
   uint32_t rssiExecutedTimeStamp = 0;  // Timestamp of last rssi command sent (in millis).
 
  private:
+  bool reloadFromFile(const std::string& deviceID = "");  // Update device data from json
   const char* fileName;
   fs::LittleFSFS& fSys;
   File jsonFile;
