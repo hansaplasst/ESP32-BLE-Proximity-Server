@@ -94,15 +94,13 @@ A framework for developing Bluetooth Low Energy (BLE) proximity-based applicatio
      - `rssiDelay=<sec>` — Sets delay (s) for `rssiCmd` to repeat when above threshold (min 1s, max 3600s, default: 5 seconds)
    - Send command to execute on disconnect (via `COMMAND_UUID`)
      - `onDisconnectCmd=<open/close/momOpen/momClose/toggle>` — Sets command to execute when device is disconnect/out-of-range
-   - Send command to (de)activate failsafe\* (via `COMMAND_UUID`)
-     - `failsafeCmd=<open/close>` — Sets the command to execute when failsafeTimer is reached (default: `close`)
-     - `failsafeTimer=<sec>` — Set to 0, to deactivate failsafe, else time in seconds to activate the failsafeCmd (default: 1800sec)
+   - Send command to (de)activate failsafe (via `COMMAND_UUID`)
+     - `failsafeCmd=<open/close>` — Sets the command to execute when failsafeTimer is reached (default: `close`). Currently failsafeCmd is set to `close`. Changing this parameters will **not** survive a reboot.
+     - `failsafeTimer=<sec>` — Set to 0, to deactivate failsafe, else time in seconds to activate the failsafeCmd (default: 1800sec). Currently failsafeTimer is set to 30 minutes. Changing this parameters will **not** survive a reboot.
    - Other `COMMAND_UUID` commands:
      - `setName=<name>` — Sets the device name.
      - `json` — Returns the list of authorized devices file in JSON (admin only).
      - `format` — Formats the filesystem (admin only).
-
-\* Currently failsafe is set to 30 minutes. Changing these parameters will **not** survive a reboot.
 
 ## Device Authorization
 
