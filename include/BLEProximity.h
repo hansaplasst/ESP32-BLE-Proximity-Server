@@ -37,6 +37,12 @@ class BLEProximity : public BLEServerCallbacks {
   void handleGAPEvent(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t* param);
   void disconnectAll();
 
+  void enableSafetyMonitor(bool enable) { safetyMonitorEnabled = enable; }
+  void setSafetyTimeout(uint32_t ms) { safetyTimeoutMs = ms; }
+  void setSafetyCommand(std::string value) {
+    if (value == "open" || value == "close") safetyMonitorCommand = value;
+  }
+
   ProximityDevice& device;
 
  private:
@@ -47,6 +53,13 @@ class BLEProximity : public BLEServerCallbacks {
 
   bool rssiRequestInProgress = false;  // true as long as there is a read_rssi in progress
   uint32_t lastRssiRequestMs = 0;      // timestamp of the last request (millis)
+
+  uint8_t activeConnections = 0;               // Number of active connections
+  bool safetyMonitorEnabled = true;            // Enable/Disable safety monitor
+  std::string safetyMonitorCommand = "close";  // Default failsafe command
+  uint32_t safetyTimeoutMs = 10000;            // x seconds
+  uint32_t lastAllDisconnectedMs = 0;          // Timestamp of last disconnect
+  void checkSafetyTimeout();                   // To check failsafe
 };
 
 class ProximitySecurity : public BLESecurityCallbacks {

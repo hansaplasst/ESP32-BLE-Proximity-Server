@@ -234,6 +234,8 @@ void BLEProximity::begin() {
  */
 void BLEProximity::poll() {
   // DPRINTF(0, "BLEProximity::poll()");
+  checkSafetyTimeout();  // Failsafe check
+
   if (!deviceConnected) return;
 
   if (!device.isAuthenticated) return;
@@ -371,6 +373,7 @@ void BLEProximity::onConnect(BLEServer* pServer, esp_ble_gatts_cb_param_t* param
   device.data.mac = BLEAddress(param->connect.remote_bda).toString();
   DPRINTF(1, "Device connected: %s", device.data.mac.c_str());
   deviceConnected = true;
+  activeConnections++;
 }
 
 /**
@@ -386,7 +389,10 @@ void BLEProximity::onConnect(BLEServer* pServer, esp_ble_gatts_cb_param_t* param
  */
 void BLEProximity::onDisconnect(BLEServer* pServer, esp_ble_gatts_cb_param_t* param) {
   DPRINTF(0, "BLEProximity::onDisconnect()");
+
   deviceConnected = false;
+  if (activeConnections > 0) activeConnections--;
+  if (activeConnections == 0) lastAllDisconnectedMs = millis();  // Activate failsafe
 
   rwCharacteristic->setValue(device.data.on_disconnect_command.c_str());     // Set the disconnect command value
   if (commandCallback) commandCallback->onWrite(rwCharacteristic, nullptr);  // Process the command
@@ -465,6 +471,35 @@ void BLEProximity::disconnectAll() {
   if (pBLEServer) {
     pBLEServer->disconnect(0);  // Disconnect all connected clients
   }
+}
+
+void BLEProximity::checkSafetyTimeout() {
+  if (!safetyMonitorEnabled) {
+    return;
+  }
+
+  // Zolang er devices connected zijn: niets doen
+  if (activeConnections > 0) {
+    return;
+  }
+
+  // Als er nog nooit een “alles disconnected”-moment is geweest: ook niets
+  if (lastAllDisconnectedMs == 0) {
+    return;
+  }
+
+  uint32_t now = millis();
+  if (now - lastAllDisconnectedMs < safetyTimeoutMs) {
+    // Timeout not yet reached
+    return;
+  }
+
+  // No devices connected, timeout reached → deur/switch dicht
+  DPRINTF(1, "Safety timeout reached with no active connections → Switch to %s", safetyMonitorCommand);
+  setSwitchState(safetyMonitorCommand);
+
+  // Timer reset so we won't spamm
+  lastAllDisconnectedMs = 0;
 }
 
 ProximitySecurity::ProximitySecurity(ProximityDevice& devData) : device(devData) {}
@@ -844,9 +879,9 @@ void CommandCallback::onWrite(BLECharacteristic* pChar, esp_ble_gatts_cb_param_t
         return;
       }
 
-      // Clamp naar int16_t en praktische grenzen
-      if (ms < 10) ms = 10;        // minimaal 10 ms om '0' te voorkomen
-      if (ms > 30000) ms = 30000;  // bovengrens 30s binnen int16_t
+      // Clamp to int16_t and practical boundaries
+      if (ms < 10) ms = 10;        // minimal 10 ms to prevent '0'
+      if (ms > 30000) ms = 30000;  // upper limit 30s within int16_t
 
       bleProx->device.data.momSwitchDelay = static_cast<int16_t>(ms);
       bleProx->device.update();
