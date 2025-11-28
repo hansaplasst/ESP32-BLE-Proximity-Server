@@ -95,14 +95,14 @@ A framework for developing Bluetooth Low Energy (BLE) proximity-based applicatio
    - Send command to execute on disconnect (via `COMMAND_UUID`)
      - `onDisconnectCmd=<open/close/momOpen/momClose/toggle>` — Sets command to execute when device is disconnect/out-of-range
    - Send command to (de)activate failsafe\* (via `COMMAND_UUID`)
-     - `failsafeCmd=<open/close>` — Sets the command to execute when failsafeTimer is reached
-     - `failsafeTimer=<sec>` — Set to 0, to deactivate failsafe, else time in seconds to activate the failsafeCmd
+     - `failsafeCmd=<open/close>` — Sets the command to execute when failsafeTimer is reached (default: `close`)
+     - `failsafeTimer=<sec>` — Set to 0, to deactivate failsafe, else time in seconds to activate the failsafeCmd (default: 1800sec)
    - Other `COMMAND_UUID` commands:
      - `setName=<name>` — Sets the device name.
      - `json` — Returns the list of authorized devices file in JSON (admin only).
      - `format` — Formats the filesystem (admin only).
 
-\* Currently Failsafe is set to 30 minutes. Changing these parameters will **not** survive a reboot.
+\* Currently failsafe is set to 30 minutes. Changing these parameters will **not** survive a reboot.
 
 ## Device Authorization
 
