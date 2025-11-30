@@ -625,9 +625,11 @@ void ProximitySecurity::onAuthenticationComplete(esp_ble_auth_cmpl_t cmpl) {
   } else {
     DPRINTF(2, "Authentication failed: %s", macStr.c_str());
 
-    BLEDevice::stopAdvertising();
-    delay(200);                     // Give BLE stack time to clean up
-    BLEDevice::startAdvertising();  // Restart advertising
+    // Actively disconnect the peer that failed to authenticate
+    esp_err_t err = esp_ble_gap_disconnect(cmpl.bd_addr);
+    if (err != ESP_OK) {
+      DPRINTF(3, "Failed to disconnect device %s, err=%d", macStr.c_str(), err);
+    }
   }
 }
 
