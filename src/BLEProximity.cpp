@@ -876,10 +876,12 @@ void CommandCallback::onWrite(BLECharacteristic* pChar, esp_ble_gatts_cb_param_t
     if (bSetName) {
       std::string newName = value.substr(5);  // Skip "name="
       if (newName.length() > 0) {
-        bleProx->device.data.name = newName;
-        bleProx->device.update();
-        notifyChar(rwCharacteristic, ("Name set to: " + newName).c_str());
-        DPRINTF(1, "Device name set to: %s", newName.c_str());
+        if (bleProx->device.data.name != newName) {
+          bleProx->device.data.name = newName;
+          bleProx->device.update();
+          notifyChar(rwCharacteristic, ("Name set to: " + newName).c_str());
+          DPRINTF(1, "Device name set to: %s", newName.c_str());
+        }
       } else {
         notifyChar(rwCharacteristic, "Invalid name");
         DPRINTF(3, "Invalid name received");
