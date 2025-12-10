@@ -348,13 +348,13 @@ void BLEProximity::setSwitchState(const std::string& value) {
   if (value == "momOpen") {
     if (sSwitchQueue) xQueueReset(sSwitchQueue);  // clear old sequences
     enqueueSwitch(true, 0);
-    enqueueSwitch(false, (uint32_t)device.data.momSwitchDelay);
-    DPRINTF(0, "momOpen sequence: %d ms", device.data.momSwitchDelay);
+    enqueueSwitch(false, (uint32_t)device.data.mom_switch_delay);
+    DPRINTF(0, "momOpen sequence: %d ms", device.data.mom_switch_delay);
   } else if (value == "momClose") {
     if (sSwitchQueue) xQueueReset(sSwitchQueue);
     enqueueSwitch(false, 0);
-    enqueueSwitch(true, (uint32_t)device.data.momSwitchDelay);
-    DPRINTF(0, "momClose sequence: %d ms", device.data.momSwitchDelay);
+    enqueueSwitch(true, (uint32_t)device.data.mom_switch_delay);
+    DPRINTF(0, "momClose sequence: %d ms", device.data.mom_switch_delay);
   }
 }
 
@@ -438,7 +438,7 @@ void BLEProximity::handleGAPEvent(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_p
           }
 
           uint32_t delayOffset = device.data.rssi_command == "momOpen" || device.data.rssi_command == "momClose"
-                                     ? (uint32_t)device.data.momSwitchDelay
+                                     ? (uint32_t)device.data.mom_switch_delay
                                      : 0;
           if (device.data.rssi_command != "" && param->read_rssi_cmpl.rssi >= device.data.rssi_threshold &&
               (millis() - device.rssiExecutedTimeStamp >= (uint32_t)device.data.rssi_command_delay * 1000 + delayOffset)) {
@@ -571,7 +571,10 @@ void ProximitySecurity::onAuthenticationComplete(esp_ble_auth_cmpl_t cmpl) {
 
   std::string macStr = BLEAddress(cmpl.bd_addr).toString();
 
-  if (device.data.isBlocked) return;  // Ignore blocked devices
+  if (device.data.is_blocked) {
+    esp_ble_gap_disconnect(cmpl.bd_addr);  // Disconnect blocked devices
+    return;
+  }
 
   if (device.isAuthenticated) {
     DPRINTF(1, "Authentication successful");
@@ -598,20 +601,20 @@ void ProximitySecurity::onAuthenticationComplete(esp_ble_auth_cmpl_t cmpl) {
               "    device.data.name:\t\t%s\n"
               "    device.data.mac:\t\t%s\n"
               "    device.data.paired:\t\t%s\n"
-              "    device.data.isBlocked:\t%s\n"
-              "    device.data.isAdmin:\t%s\n"
+              "    device.data.is_blocked:\t%s\n"
+              "    device.data.is_admin:\t%s\n"
               "    device.data.rssi_threshold:\t%d\n"
-              "    device.data.momSwitchDelay:\t%d\n"
+              "    device.data.mom_switch_delay:\t%d\n"
               "    device.data.rssi_command:\t%s\n"
               "    device.data.rssi_command_delay:\t%d\n"
               "    device.data.on_disconnect_command:\t%s",
               device.data.name.c_str(),
               device.data.mac.c_str(),
               device.data.paired ? "true" : "false",
-              device.data.isBlocked ? "true" : "false",
-              device.data.isAdmin ? "true" : "false",
+              device.data.is_blocked ? "true" : "false",
+              device.data.is_admin ? "true" : "false",
               device.data.rssi_threshold,
-              device.data.momSwitchDelay,
+              device.data.mom_switch_delay,
               device.data.rssi_command.c_str(),
               device.data.rssi_command_delay,
               device.data.on_disconnect_command.c_str());
@@ -837,7 +840,7 @@ void CommandCallback::onWrite(BLECharacteristic* pChar, esp_ble_gatts_cb_param_t
     return;
   }
 
-  if (bleProx->device.data.isBlocked) {
+  if (bleProx->device.data.is_blocked) {
     DPRINTF(3, "Illegal write attempt: device is blocked");
     return;
   }
@@ -903,13 +906,13 @@ void CommandCallback::onWrite(BLECharacteristic* pChar, esp_ble_gatts_cb_param_t
       if (ms < 10) ms = 10;        // minimal 10 ms to prevent '0'
       if (ms > 30000) ms = 30000;  // upper limit 30s within int16_t
 
-      bleProx->device.data.momSwitchDelay = static_cast<int16_t>(ms);
+      bleProx->device.data.mom_switch_delay = static_cast<int16_t>(ms);
       bleProx->device.update();
 
       char buf[48];
       snprintf(buf, sizeof(buf), "momDel=%ld", ms);
       notifyChar(rwCharacteristic, buf);
-      DPRINTF(1, "momSwitchDelay set to %ld ms", ms);
+      DPRINTF(1, "mom_switch_delay set to %ld ms", ms);
     }
 
     if (bSetRssiCmd) {
@@ -952,7 +955,7 @@ void CommandCallback::onWrite(BLECharacteristic* pChar, esp_ble_gatts_cb_param_t
       DPRINTF(1, "onDisconnectCmd set to: %s", newCmd.c_str());
     }
 
-    if (bSetFailsafeCmd && bleProx->device.data.isAdmin) {
+    if (bSetFailsafeCmd && bleProx->device.data.is_admin) {
       std::string cmd = value.substr(strlen("failsafeCmd="));  // after "failsafeCmd="
 
       if (cmd != "open" && cmd != "close") {
@@ -967,7 +970,7 @@ void CommandCallback::onWrite(BLECharacteristic* pChar, esp_ble_gatts_cb_param_t
     } else if (bSetFailsafeCmd)
       isAdminMsg = true;
 
-    if (bSetFailsafeTimer && bleProx->device.data.isAdmin) {
+    if (bSetFailsafeTimer && bleProx->device.data.is_admin) {
       const char* s = value.c_str() + strlen("failsafeTimer=");  // after "failsafeTimer="
       char* endp = nullptr;
       long sec = strtol(s, &endp, 10);
@@ -992,7 +995,7 @@ void CommandCallback::onWrite(BLECharacteristic* pChar, esp_ble_gatts_cb_param_t
       isAdminMsg = true;
 
     // Publish the JSON file if requested
-    if (value == "json" && bleProx->device.data.isAdmin) {
+    if (value == "json" && bleProx->device.data.is_admin) {
       bleProx->device.printJsonFile();  // TODO: Do NOT enable this in production, it's insecure!
       notifyChar(rwCharacteristic, "Disabled for security reasons");
     } else if (value == "json")
@@ -1000,7 +1003,7 @@ void CommandCallback::onWrite(BLECharacteristic* pChar, esp_ble_gatts_cb_param_t
 
     // Format the LittleFS if requested
     // TODO: FIX if multiple partitions are used
-    if (value == "format" && bleProx->device.data.isAdmin) {
+    if (value == "format" && bleProx->device.data.is_admin) {
       if (!bleProx->device.getFSHandle().format()) {
         notifyChar(rwCharacteristic, "Format failed");
         DPRINTF(3, "Failed to format file system\n");

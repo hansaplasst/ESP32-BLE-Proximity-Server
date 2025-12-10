@@ -94,7 +94,7 @@ bool ProximityDevice::begin(gpio_num_t switchPin, bool formatOnFail,
   }
   jsonFile.close();
 
-  jsonFile = fSys.open(devicesFile, "rw");
+  jsonFile = fSys.open(devicesFile, "r+");
   if (!jsonFile) {
     DPRINTF(3, "This should not happen!!!");
     return false;
@@ -130,10 +130,10 @@ void ProximityDevice::resetRuntimeState() {
   data.name = "unknown";
   data.mac.clear();
   data.paired = false;
-  data.isBlocked = false;
-  data.isAdmin = false;
+  data.is_blocked = false;
+  data.is_admin = false;
   data.rssi_threshold = -100;
-  data.momSwitchDelay = 300;
+  data.mom_switch_delay = 300;
   data.rssi_command = "momOpen";
   data.rssi_command_delay = 5;
   data.on_disconnect_command = "close";
@@ -175,10 +175,10 @@ bool ProximityDevice::update() {
   obj["name"] = data.name;
   obj["mac"] = data.mac;
   obj["paired"] = data.paired;
-  obj["isBlocked"] = data.isBlocked;
-  obj["isAdmin"] = data.isAdmin;
+  obj["is_blocked"] = data.is_blocked;
+  obj["is_admin"] = data.is_admin;
   obj["rssi_threshold"] = data.rssi_threshold;
-  obj["momSwitchDelay"] = data.momSwitchDelay;
+  obj["mom_switch_delay"] = data.mom_switch_delay;
   obj["rssi_command"] = data.rssi_command;
   obj["rssi_command_delay"] = data.rssi_command_delay;
   obj["on_disconnect_command"] = data.on_disconnect_command;
@@ -217,10 +217,10 @@ bool ProximityDevice::remove() {
   data.name = "unknown";
   data.mac.clear();
   data.paired = false;
-  data.isBlocked = false;
-  data.isAdmin = false;
+  data.is_blocked = false;
+  data.is_admin = false;
   data.rssi_threshold = -100;
-  data.momSwitchDelay = 300;
+  data.mom_switch_delay = 300;
   data.rssi_command = "momOpen";
   data.rssi_command_delay = 5;
   data.on_disconnect_command = "close";
@@ -256,11 +256,11 @@ bool ProximityDevice::get(const std::string& deviceID) {
   data.name = deviceObj["name"] | data.name;                                                     // Default to "unknown" if not set
   data.mac = deviceObj["mac"] | data.mac;                                                        // Default to empty string if not set
   data.paired = deviceObj["paired"] | data.paired;                                               // Default to false if not set
-  data.isBlocked = deviceObj["isBlocked"] | data.isBlocked;                                      // Default to false if not set
-  data.isAdmin = deviceObj["isAdmin"] | data.isAdmin;                                            // Default to false if not set
+  data.is_blocked = deviceObj["is_blocked"] | data.is_blocked;                                      // Default to false if not set
+  data.is_admin = deviceObj["is_admin"] | data.is_admin;                                            // Default to false if not set
   data.rssi_threshold = deviceObj["rssi_threshold"] | data.rssi_threshold;                       // Default to -100 if not set
-  data.momSwitchDelay = deviceObj["momSwitchDelay"] | data.momSwitchDelay;                       // Default to 300ms if not set
-  data.rssi_command = deviceObj["rssiCommand"] | data.rssi_command;                              // Default to "momOpen" if not set
+  data.mom_switch_delay = deviceObj["mom_switch_delay"] | data.mom_switch_delay;                 // Default to 300ms if not set
+  data.rssi_command = deviceObj["rssi_command"] | data.rssi_command;                             // Default to "momOpen" if not set
   data.rssi_command_delay = deviceObj["rssi_command_delay"] | data.rssi_command_delay;           // Default to 5 seconds if not set
   data.on_disconnect_command = deviceObj["on_disconnect_command"] | data.on_disconnect_command;  // Default to "close" if not set
 
@@ -343,6 +343,6 @@ bool ProximityDevice::reloadDevice(const std::string& deviceID) {
  */
 void ProximityDevice::setAdmin(bool value) {
   DPRINTF(0, "ProximityDevice::setAdmin");
-  data.isAdmin = value;
+  data.is_admin = value;
   update();
 }

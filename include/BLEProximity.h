@@ -40,7 +40,7 @@ class BLEProximity : public BLEServerCallbacks {
   // Failsafe
   // TODO: save this to a Proximity config which is loaded during boot.
   void setFailsafeTimeout(uint32_t sec);
-  uint32_t getFailsafeTimeout() const { return lastFailsafeActivityMs / 1000UL; }
+  uint32_t getFailsafeTimeout() const { return failsafeTimeoutMs / 1000UL; }
   void setFailsafeCommand(std::string& cmd);
   const std::string& getFailsafeCommand() const { return failsafeCommand; }
 

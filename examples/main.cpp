@@ -8,7 +8,7 @@
 const char* deviceName = DEV_NAME;
 
 BLEProximity* proximityServer = nullptr;
-ProximityDevice device(deviceName);
+ProximityDevice* proximityDevice = nullptr;
 
 void setup() {
   Serial.begin(BAUDRATE);
@@ -22,12 +22,13 @@ void setup() {
 
   pinMode(LED_BUILTIN, OUTPUT);
   digitalWrite(LED_BUILTIN, HIGH);  // Turn the RGB LED white
+  proximityDevice = new ProximityDevice(deviceName);
 
-  if (!device.begin(GPIO_NUM_18, true)) {
+  if (!proximityDevice->begin(GPIO_NUM_18, true)) {
     DPRINTF(3, "ProximityDevice init failed, halting");
     exit(3);
   }
-  proximityServer = new BLEProximity(device);
+  proximityServer = new BLEProximity(*proximityDevice);
   proximityServer->begin();
 
   // printESPInfo();  // Print ESP information for debugging
