@@ -588,7 +588,7 @@ void ProximitySecurity::onAuthenticationComplete(esp_ble_auth_cmpl_t cmpl) {
     // DPRINTF(0, "Mac %s Peer key: %s", macStr.c_str(), hashedKey.c_str()); // Do NOT log hashed key in production for security reasons
     if (!device.get(hashedKey)) {
       DPRINTF(1, "Device not found in JSON, creating new device");
-      device.data.deviceID = hashedKey;
+      device.data.device_id = hashedKey;
       device.data.mac = macStr;
       device.data.paired = cmpl.success;
 
@@ -851,6 +851,7 @@ void CommandCallback::onWrite(BLECharacteristic* pChar, esp_ble_gatts_cb_param_t
   if (value.length() > 0) {
     bool isAdminMsg = false;
 
+    // TODO: onDeleteDevice -> remove paired device from bonded list
     bool bState = (value == "open" || value == "close" || value == "toggle" ||
                    value == "momOpen" || value == "momClose" || value == "status");
     bool bSetName = String(value.c_str()).startsWith("name=");                      // device name

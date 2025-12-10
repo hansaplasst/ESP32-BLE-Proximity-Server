@@ -29,7 +29,7 @@
  *    ProximityDevice::remove
  */
 struct ProximityData {
-  std::string deviceID = "";                    // Link key for the device
+  std::string device_id = "";                    // Link key for the device
   std::string name = "unknown";                 // Name of the device
   std::string mac = "";                         // MAC address of the device
   bool paired = false;                          // Pairing status: true if paired, false otherwise

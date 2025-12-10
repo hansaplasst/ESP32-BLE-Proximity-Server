@@ -126,7 +126,7 @@ void ProximityDevice::resetRuntimeState() {
   rssiExecutedTimeStamp = 0;
 
   // Eventueel ook de data resetten (zoals je bij remove() doet, maar zonder JSON te wijzigen)
-  data.deviceID.clear();
+  data.device_id.clear();
   data.name = "unknown";
   data.mac.clear();
   data.paired = false;
@@ -145,7 +145,7 @@ void ProximityDevice::resetRuntimeState() {
  * The function performs the following steps:
  * 1. Attempts to read the JSON file from LittleFS.
  * 2. If the file does not exist or is invalid, it starts with an empty JSON document.
- * 3. Checks if the device (by deviceID) already exists in the JSON.
+ * 3. Checks if the device (by device_id) already exists in the JSON.
  *    - If it exists, updates the device information.
  *    - If not, adds a new device entry.
  * 4. Writes the updated JSON document back to the file.
@@ -155,7 +155,7 @@ void ProximityDevice::resetRuntimeState() {
  */
 bool ProximityDevice::update() {
   triggerUpdateJson = false;
-  DPRINTF(0, "ProximityDevice::update(%s)", data.deviceID.c_str());
+  DPRINTF(0, "ProximityDevice::update(%s)", data.device_id.c_str());
 
   if (!jsonDocument.is<JsonObject>()) {
     DPRINTF(3, "JSON document is not an object, creating new object");
@@ -163,13 +163,13 @@ bool ProximityDevice::update() {
     jsonDocument.to<JsonObject>();
   }
 
-  JsonObject obj = jsonDocument[data.deviceID.c_str()];
+  JsonObject obj = jsonDocument[data.device_id.c_str()];
 
   if (obj) {
     DPRINTF(1, "Updating existing device: %s", data.name.c_str());
   } else {
     DPRINTF(1, "Adding new device: %s", data.name.c_str());
-    obj = jsonDocument[data.deviceID.c_str()].to<JsonObject>();
+    obj = jsonDocument[data.device_id.c_str()].to<JsonObject>();
   }
 
   obj["name"] = data.name;
@@ -198,22 +198,22 @@ bool ProximityDevice::update() {
 }
 
 bool ProximityDevice::remove() {
-  DPRINTF(0, "ProximityDevice::remove(%s)", data.deviceID.c_str());
+  DPRINTF(0, "ProximityDevice::remove(%s)", data.device_id.c_str());
 
   if (!jsonDocument.is<JsonObject>()) {
     DPRINTF(3, "JSON document is not an object");
     return false;
   }
 
-  if (!jsonDocument[data.deviceID.c_str()].is<JsonObject>()) {
-    DPRINTF(0, "Device %s not found for deletion", data.deviceID.c_str());
+  if (!jsonDocument[data.device_id.c_str()].is<JsonObject>()) {
+    DPRINTF(0, "Device %s not found for deletion", data.device_id.c_str());
     return false;
   }
 
-  jsonDocument.remove(data.deviceID.c_str());
+  jsonDocument.remove(data.device_id.c_str());
 
   // Reset data to default values
-  data.deviceID.clear();
+  data.device_id.clear();
   data.name = "unknown";
   data.mac.clear();
   data.paired = false;
@@ -234,7 +234,7 @@ bool ProximityDevice::remove() {
   serializeJsonPretty(jsonDocument, jsonFile);  // TODO: Don't do pretty
   jsonFile.close();
 
-  DPRINTF(1, "Device %s deleted from %s", data.deviceID.c_str(), devicesFile);
+  DPRINTF(1, "Device %s deleted from %s", data.device_id.c_str(), devicesFile);
   return true;
 }
 
@@ -252,12 +252,12 @@ bool ProximityDevice::get(const std::string& deviceID) {
     return false;
   }
 
-  data.deviceID = deviceID;
+  data.device_id = deviceID;
   data.name = deviceObj["name"] | data.name;                                                     // Default to "unknown" if not set
   data.mac = deviceObj["mac"] | data.mac;                                                        // Default to empty string if not set
   data.paired = deviceObj["paired"] | data.paired;                                               // Default to false if not set
-  data.is_blocked = deviceObj["is_blocked"] | data.is_blocked;                                      // Default to false if not set
-  data.is_admin = deviceObj["is_admin"] | data.is_admin;                                            // Default to false if not set
+  data.is_blocked = deviceObj["is_blocked"] | data.is_blocked;                                   // Default to false if not set
+  data.is_admin = deviceObj["is_admin"] | data.is_admin;                                         // Default to false if not set
   data.rssi_threshold = deviceObj["rssi_threshold"] | data.rssi_threshold;                       // Default to -100 if not set
   data.mom_switch_delay = deviceObj["mom_switch_delay"] | data.mom_switch_delay;                 // Default to 300ms if not set
   data.rssi_command = deviceObj["rssi_command"] | data.rssi_command;                             // Default to "momOpen" if not set
@@ -303,7 +303,7 @@ fs::LittleFSFS& ProximityDevice::getFSHandle() {
 }
 
 bool ProximityDevice::reloadDevice(const std::string& deviceID) {
-  std::string id = deviceID.empty() ? data.deviceID : deviceID;
+  std::string id = deviceID.empty() ? data.device_id : deviceID;
 
   if (!devicesFile) {
     DPRINTF(3, "reloadDevice: devicesFile is null");
