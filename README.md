@@ -90,7 +90,7 @@ A framework for developing Bluetooth Low Energy (BLE) proximity-based applicatio
      - `momDelay=<ms>` — Sets delay (ms) for the `momOpen`/`momClose` commands (min 10ms, max 30s, default: 300ms)
    - Send commands to configure Proximity parameters (via `COMMAND_UUID`)
      - `rssiUpdate` — Command to update Proximity threshold. Place device within range of the server then send `rssiUpdate`
-     - `rssiCmd=<open/close/momOpen/momClose/toggle>` — Sets the command to execute when RSSI above threshold
+     - `rssiCmd=<open/close/momOpen/momClose/toggle>` — Sets the command to execute when RSSI above threshold. If empty, no command is executed.
      - `rssiDelay=<sec>` — Sets delay (s) for `rssiCmd` to repeat when above threshold (min 1s, max 3600s, default: 5 seconds)
    - Send command to execute on disconnect (via `COMMAND_UUID`)
      - `onDisconnectCmd=<open/close/momOpen/momClose/toggle>` — Sets command to execute when device is disconnect/out-of-range
@@ -114,7 +114,7 @@ A framework for developing Bluetooth Low Energy (BLE) proximity-based applicatio
   - **is_admin**: Admin flag. Default: `false`
   - **rssi_threshold**: Proximity threshold. A value between `0` and `-100`. Default: `-100`
   - **mom_switch_delay**: Switch delay for momentary switch (`momOpen`/`momClose`). Default: `300`ms
-  - **rssi_command**: Command to execute when a device is in proximity. Default: `"momOpen"`
+  - **rssi_command**: Command to execute when a device is in proximity. Default: `"momOpen"`. If empty, no command is executed.
   - **rssi_command_delay**: Delay in seconds for the rssi_command to repeat if above the threshold (min 1a, max 3600s, default: 5s)
   - **on_disconnect_command**: Command to execute if device disconnects or gets out of range. Default: `"close"`
 
