@@ -862,9 +862,10 @@ void CommandCallback::onWrite(BLECharacteristic* pChar, esp_ble_gatts_cb_param_t
     bleProx->device.triggerUpdateJson = (value == "rssiUpdate");                    // RSSI update on next proximity event
     bool bSetFailsafeCmd = String(value.c_str()).startsWith("failsafeCmd=");        // failsafe open/close
     bool bSetFailsafeTimer = String(value.c_str()).startsWith("failsafeTimer=");    // failsafe timeout in sec
+    bool whoami = (value == "whoami");
     bool isValidCommand = (bSetName || bState || bSetMomDelay || bSetRssiCmd ||
                            bSetRssiDelay || bSetDisconnectCmd ||
-                           bSetFailsafeCmd || bSetFailsafeTimer ||
+                           bSetFailsafeCmd || bSetFailsafeTimer || whoami ||
                            bleProx->device.triggerUpdateJson ||
                            value == "json" || value == "format" || value == "status");
 
@@ -994,6 +995,11 @@ void CommandCallback::onWrite(BLECharacteristic* pChar, esp_ble_gatts_cb_param_t
       }
     } else if (bSetFailsafeTimer)
       isAdminMsg = true;
+
+    // Report device info in json format
+    if (whoami && bleProx->device.data.is_admin) {
+      notifyChar(rwCharacteristic, bleProx->device.getInfoJson().c_str());
+    }
 
     // Publish the JSON file if requested
     if (value == "json" && bleProx->device.data.is_admin) {

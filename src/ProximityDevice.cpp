@@ -294,6 +294,24 @@ std::string ProximityDevice::printJsonFile() {
   return contents;
 }
 
+std::string ProximityDevice::getInfoJson() const {
+  DynamicJsonDocument doc(1024);
+  doc["name"] = data.name;
+  doc["mac"] = data.mac;
+  doc["paired"] = data.paired;
+  doc["is_blocked"] = data.is_blocked;
+  doc["is_admin"] = data.is_admin;
+  doc["rssi_threshold"] = data.rssi_threshold;
+  doc["mom_switch_delay"] = data.mom_switch_delay;
+  doc["rssi_command"] = data.rssi_command;
+  doc["rssi_command_delay"] = data.rssi_command_delay;
+  doc["on_disconnect_command"] = data.on_disconnect_command;
+
+  std::string json;
+  serializeJson(doc, json);
+  return json;
+}
+
 gpio_num_t ProximityDevice::getSwitchPin() const {
   return switch_pin;
 }
