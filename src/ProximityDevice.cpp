@@ -295,7 +295,7 @@ std::string ProximityDevice::printJsonFile() {
 }
 
 std::string ProximityDevice::getInfoJson() const {
-  DynamicJsonDocument doc(1024);
+  JsonObject doc;
   doc["name"] = data.name;
   doc["mac"] = data.mac;
   doc["paired"] = data.paired;
