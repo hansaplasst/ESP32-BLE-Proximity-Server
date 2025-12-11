@@ -997,7 +997,7 @@ void CommandCallback::onWrite(BLECharacteristic* pChar, esp_ble_gatts_cb_param_t
       isAdminMsg = true;
 
     // Report device info in json format
-    if (whoami && bleProx->device.data.is_admin) {
+    if (whoami) {
       notifyChar(rwCharacteristic, bleProx->device.getInfoJson().c_str());
     }
 
