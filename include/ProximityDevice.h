@@ -85,13 +85,13 @@ class ProximityDevice {
   void resetRuntimeState();                             // Resets the device to the inital state
   bool update();                                        // Adds or updates data entry in the JSON file
   bool remove();                                        // deletes data entry from JSON and clears resets the data entry to default
-  bool triggerUpdateJson = false;                       // Helper to trigger update in callback functions
+  bool triggerRssiUpdate = false;                       // Helper to trigger update in callback functions
   bool isAuthenticated = false;                         // True if device is authenticated, else false
   bool get(const std::string& deviceID);                // Retrieves device from JSON if exists and updates data struct
   bool reloadDevice(const std::string& deviceID = "");  // Update device data from json
   void setAdmin(bool value);                            // set data.is_admin to value and updates json
   std::string printJsonFile();                          // Prints the contents of json file to INFO (1)
-  std::string getInfoJson() const;                      // Gets the device info in JSON format
+  std::string getJsonDevInfo() const;                   // Gets the device info in JSON format
   gpio_num_t getSwitchPin() const;                      // Gets the GPIO pin used for the switch (default GPIO18)
   fs::LittleFSFS& getFSHandle();                        // return the file system handle
 

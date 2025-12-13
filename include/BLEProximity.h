@@ -11,14 +11,25 @@
 
 #define SERVICE_UUID "1802fdeb-5a0d-47b2-b56c-aea5e5aaf9f5"  // Service UUID
 #define RSSI_UUID "6e400001-b5a3-f393-e0a9-e50e24dcca9e"     // Proximity characteristic (R)
-#define COMMAND_UUID "6e400002-b5a3-f393-e0a9-e50e24dcca9e"  // Command control characteristic (R/W)
 #define SWITCH_UUID "6e400003-b5a3-f393-e0a9-e50e24dcca9e"   // Switch characteristic (R)
+#define COMMAND_UUID "6e400002-b5a3-f393-e0a9-e50e24dcca9e"  // Command control characteristic (R/W)
 
 static bool notifyChar(BLECharacteristic* pChar, const char* value);
 
-static BLECharacteristic* rwCharacteristic = nullptr;          // Characteristic (R/W) to receive commands and get results
-static BLECharacteristic* rSwitchCharacteristic = nullptr;     // Characteristic (R) to read switch status
-static BLECharacteristic* rProximityCharacteristic = nullptr;  // Characteristic (R) to read proximity status
+static BLECharacteristic* cmdChar = nullptr;        // Characteristic (R/W) to receive commands and get results
+static BLECharacteristic* switchChar = nullptr;     // Characteristic (R) to read switch status
+static BLECharacteristic* proximityChar = nullptr;  // Characteristic (R) to read proximity status
+
+enum class CommandSource {
+  Internal,
+  External
+};
+
+constexpr size_t CMD_MAX_LEN = 64;
+struct ProximityCommand {
+  char value[CMD_MAX_LEN];  // the raw command string ("open", "format", "name=...")
+  CommandSource source;     // Internal (onDisconnect/RSSI) or External (client write)
+};
 
 class BLEProximity : public BLEServerCallbacks {
  public:
@@ -27,9 +38,10 @@ class BLEProximity : public BLEServerCallbacks {
   void begin();
   void poll();
 
-  void setProximityThreshold(int8_t rssi);        // Proximity threshold instellen (optioneel)
-  void setSwitchState(const std::string& value);  // "OPEN" or "CLOSED"
-  void notifySwitch(const char* state);           // <-- core-1 updates the switch characteristic
+  void setProximityThreshold(int8_t rssi);                         // Initialize Proximity threshold (optional)
+  void setSwitchState(const std::string& value);                   // "OPEN" or "CLOSED"
+  void notifySwitch(const char* state);                            // core-1 updates the switch characteristic
+  void enqueueCommand(const std::string& cmd, CommandSource src);  // Enqueue a command for processing
 
   // Callbacks
   void onConnect(BLEServer* pServer, esp_ble_gatts_cb_param_t* param) override;
@@ -47,6 +59,10 @@ class BLEProximity : public BLEServerCallbacks {
   ProximityDevice& device;
 
  private:
+  void processCommand(const ProximityCommand& cmd);  // process a command from the enqueueCommand queue
+  static void commandWorkerTask(void* pvParameters);
+  QueueHandle_t commandQueue = nullptr;
+
   BLEServer* pBLEServer = nullptr;
   BLEService* pService = nullptr;
   BLEAdvertising* pAdvertising = nullptr;
@@ -97,13 +113,12 @@ class ProximitySecurity : public BLESecurityCallbacks {
 
 class CommandCallback : public BLECharacteristicCallbacks {
  public:
-  CommandCallback(BLEProximity* BLEProx);
+  CommandCallback(BLEProximity* BLEProx) : bleProx(BLEProx) {};
   void onWrite(BLECharacteristic* pChar, esp_ble_gatts_cb_param_t* param) override;
 
  private:
   BLEProximity* bleProx;
 };
-
 static CommandCallback* commandCallback = nullptr;
 
 #endif

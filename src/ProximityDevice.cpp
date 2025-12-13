@@ -121,7 +121,7 @@ void ProximityDevice::resetRuntimeState() {
   DPRINTF(0, "ProximityDevice::resetRuntimeState");
 
   // Reset Flags
-  triggerUpdateJson = false;
+  triggerRssiUpdate = false;
   isAuthenticated = false;
   rssiExecutedTimeStamp = 0;
 
@@ -154,8 +154,8 @@ void ProximityDevice::resetRuntimeState() {
  * @note The file path is specified by devicesFile.
  */
 bool ProximityDevice::update() {
-  triggerUpdateJson = false;
-  DPRINTF(0, "ProximityDevice::update(%s)", data.device_id.c_str());
+  triggerRssiUpdate = false;
+  DPRINTF(0, "ProximityDevice::update");
 
   if (!jsonDocument.is<JsonObject>()) {
     DPRINTF(3, "JSON document is not an object, creating new object");
@@ -294,21 +294,17 @@ std::string ProximityDevice::printJsonFile() {
   return contents;
 }
 
-std::string ProximityDevice::getInfoJson() const {
-  JsonObject doc;
-  doc["name"] = data.name;
-  doc["mac"] = data.mac;
-  doc["paired"] = data.paired;
-  doc["is_blocked"] = data.is_blocked;
-  doc["is_admin"] = data.is_admin;
-  doc["rssi_threshold"] = data.rssi_threshold;
-  doc["mom_switch_delay"] = data.mom_switch_delay;
-  doc["rssi_command"] = data.rssi_command;
-  doc["rssi_command_delay"] = data.rssi_command_delay;
-  doc["on_disconnect_command"] = data.on_disconnect_command;
-
+// Returns the device info in JSON format
+std::string ProximityDevice::getJsonDevInfo() const {
+  DPRINTF(0, "ProximityDevice::getJsonDevInfo");
+  JsonVariantConst obj = jsonDocument[data.device_id.c_str()];
   std::string json;
-  serializeJson(doc, json);
+  if (obj) {
+    serializeJsonPretty(obj, json);
+  } else {
+    DPRINTF(3, "Device %s not found in JSON document", data.device_id.c_str());
+    json = "{}";
+  }
   return json;
 }
 

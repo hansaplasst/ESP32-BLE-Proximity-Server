@@ -62,12 +62,12 @@ static void SwitchNotifyTask(void* arg) {
         // Update the physical pin via the BLEProximity instance and send notification
         digitalWrite(proximityServer->device.getSwitchPin(), switchState ? HIGH : LOW);
 
-        // Send rSwitchCharacteristic update with current state
+        // Send switchChar update with current state
         proximityServer->notifySwitch(stateToStr(switchState));
       } else {
         DPRINTF(2, "Switch update skipped: proximityServer is null");
       }
-      DPRINTF(1, "Switch applied: %s", stateToStr(switchState));
+      DPRINTF(1, "Switch: %s", stateToStr(switchState));
     }
   }
 }
@@ -161,23 +161,23 @@ void BLEProximity::begin() {
   pService = pBLEServer->createService(SERVICE_UUID);  // Immediate Alert Service (Proximity)
 
   DPRINTF(0, " Init BLE Characteristics");
-  rwCharacteristic = pService->createCharacteristic(
+  cmdChar = pService->createCharacteristic(
       COMMAND_UUID,  // Alert Notification Control Point - Commands characteristic
       BLECharacteristic::PROPERTY_READ | BLECharacteristic::PROPERTY_WRITE);
-  rwCharacteristic->addDescriptor(new BLE2902());
+  cmdChar->addDescriptor(new BLE2902());
   commandCallback = new CommandCallback(this);
-  rwCharacteristic->setCallbacks(commandCallback);
+  cmdChar->setCallbacks(commandCallback);
 
-  rProximityCharacteristic = pService->createCharacteristic(
+  proximityChar = pService->createCharacteristic(
       RSSI_UUID,  // Alert Level - RSSI characteristic
       BLECharacteristic::PROPERTY_READ | BLECharacteristic::PROPERTY_NOTIFY);
-  rProximityCharacteristic->addDescriptor(new BLE2902());
+  proximityChar->addDescriptor(new BLE2902());
 
-  rSwitchCharacteristic = pService->createCharacteristic(
+  switchChar = pService->createCharacteristic(
       SWITCH_UUID,  // Alert Status - Proximity Switch characteristic
       BLECharacteristic::PROPERTY_READ | BLECharacteristic::PROPERTY_NOTIFY);
-  rSwitchCharacteristic->addDescriptor(new BLE2902());
-  // notifyChar(rSwitchCharacteristic, switchState ? "OPEN" : "CLOSED");
+  switchChar->addDescriptor(new BLE2902());
+  // notifyChar(switchChar, switchState ? "OPEN" : "CLOSED");
 
   pService->start();
 
@@ -192,27 +192,57 @@ void BLEProximity::begin() {
 
   delay(100);  // small delay to ensure advertising starts
 
-  // Additional init steps
-  DPRINTF(0, " Pin Command Queue thread to Core 0")
+  DPRINTF(0, " Pin Switch Queue thread to Core 0")
   if (!sSwitchQueue) {
     DPRINTF(0, "  Creating Queue");
     sSwitchQueue = xQueueCreate(8, sizeof(SwitchMsg));
   }
   if (sSwitchQueue && !sSwitchTask) {
     DPRINTF(0, "  Creating Task for Core 0");
-
     /**
      * Switch Notification Task
      * Core 0: System CPU, mostly used for system tasks
      * Core 1: App CPU, suitable for user tasks
      */
-    xTaskCreatePinnedToCore(SwitchNotifyTask, "SwitchNotifyTask", 4096, nullptr, 5, &sSwitchTask, 0 /* Core 0 */);
+    BaseType_t res = xTaskCreatePinnedToCore(
+        SwitchNotifyTask,      // task function
+        "SwitchNotifyWorker",  // name
+        4096,                  // stack size in words (8192*4 bytes)
+        nullptr,               // parameter
+        5,                     // priority
+        &sSwitchTask,          // task handle
+        0                      // core id (0 or 1)
+    );
+    if (res != pdPASS) {
+      DPRINTF(3, "Failed to create SwitchNotifyWorker task");
+    }
   }
   delay(50);  // small delay to ensure task is started
   // ProximitySecurity::printBondedDevices();
 
   DPRINTF(0, " Ensure physical pin matches initial state")
   setSwitchState(switchState ? "open" : "close");  // Ensure physical pin matches initial state
+
+  // Create the command queue (e.g. max 10 pending commands)
+  commandQueue = xQueueCreate(10, sizeof(ProximityCommand));
+  if (!commandQueue) {
+    DPRINTF(3, "Failed to create command queue");
+  } else {
+    // Create worker task on core 1 (or 0), with a decent stack size
+    BaseType_t res = xTaskCreatePinnedToCore(
+        BLEProximity::commandWorkerTask,  // task function
+        "CommandWorker",                  // name
+        8192,                             // stack size in words (8192*4 bytes)
+        this,                             // parameter
+        5,                                // priority
+        nullptr,                          // task handle
+        1                                 // core id (0 or 1)
+    );
+    if (res != pdPASS) {
+      DPRINTF(3, "Failed to create CommandWorker task");
+    }
+  }
+
 #if DEBUG_LEVEL == 0
   delay(50);  // small delay to ensure debug messages are in sync
 #endif
@@ -279,16 +309,40 @@ void BLEProximity::setProximityThreshold(int8_t rssi) {
 /**
  * @brief Notifies connected BLE clients of the current switch state.
  *
- * This method sends notifications to connected BLE clients for both the command
- * characteristic (`rwCharacteristic`) and the switch characteristic (`rSwitchCharacteristic`)
- * with the provided switch state value. It uses the `notifyChar` helper function to
- * perform the notifications.
+ * This method sends the current switch state to the `switchChar` characteristic
+ * It uses the `notifyChar` helper function to perform the notifications.
  *
  * @param state The current state of the switch, represented as a string ("OPEN" or "CLOSED").
  */
 void BLEProximity::notifySwitch(const char* state) {
-  notifyChar(rwCharacteristic, state);
-  notifyChar(rSwitchCharacteristic, state);
+  // notifyChar(cmdChar, state);
+  notifyChar(switchChar, state);
+}
+
+/**
+ * @brief Enqueues a command for processing by the command worker task.
+ *
+ * This method creates a `ProximityCommand` structure with the specified command
+ * string and source, and attempts to enqueue it into the `commandQueue`. If the
+ * queue is full, the command is dropped and a warning message is logged.
+ *
+ * @param cmd The command string to enqueue.
+ * @param src The source of the command (Internal or External).
+ */
+void BLEProximity::enqueueCommand(const std::string& cmd, CommandSource src) {
+  if (!commandQueue) {
+    DPRINTF(3, "Command queue not initialized");
+    return;
+  }
+
+  ProximityCommand pc{};
+  strncpy(pc.value, cmd.c_str(), CMD_MAX_LEN - 1);
+  pc.value[CMD_MAX_LEN - 1] = '\0';  // Ensure null-termination
+  pc.source = src;
+
+  if (xQueueSendToBack(commandQueue, &pc, 0) != pdPASS) {
+    DPRINTF(2, "Command queue full, dropping command: %s", cmd.c_str());
+  }
 }
 
 /**
@@ -311,18 +365,19 @@ void BLEProximity::setSwitchState(const std::string& value) {
   if (value != "open" && value != "close" && value != "toggle" &&
       value != "momOpen" && value != "momClose" && value != "status") {
     DPRINTF(3, "Invalid command for setSwitchState: %s", value.c_str());
-    notifyChar(rwCharacteristic, "Invalid command");
+    notifyChar(cmdChar, "Invalid command");
     return;
   }
 
   if (value == "status") {
     bool state = digitalRead(device.getSwitchPin()) == HIGH;
-    notifyChar(rwCharacteristic, stateToStr(state));
-    notifyChar(rSwitchCharacteristic, stateToStr(state));
+    // notifyChar(cmdChar, stateToStr(state));
+    notifyChar(switchChar, stateToStr(state));
+    DPRINTF(1, "Switch: %s", stateToStr(switchState));
     return;
   }
 
-  // Helper to enqueue a switch notification for rSwitchCharacteristic
+  // Helper to enqueue a switch notification for switchChar
   auto enqueueSwitch = [&](bool on, uint32_t delay_ms) {
     if (!sSwitchQueue) return;
     SwitchMsg m{on, delay_ms};
@@ -393,8 +448,8 @@ void BLEProximity::onDisconnect(BLEServer* pServer, esp_ble_gatts_cb_param_t* pa
   deviceConnected = false;
   lastFailsafeActivityMs = millis();
 
-  rwCharacteristic->setValue(device.data.on_disconnect_command.c_str());     // Set the disconnect command value
-  if (commandCallback) commandCallback->onWrite(rwCharacteristic, nullptr);  // Process the command
+  // cmdChar->setValue(device.data.on_disconnect_command.c_str());       // Set the disconnect command value
+  enqueueCommand(device.data.on_disconnect_command, CommandSource::Internal);  // Enqueue the command for processing
   DPRINTF(1, "Device disconnected: %s (%s)\n\tadvertising restarted\n", device.data.name.c_str(), device.data.mac.c_str());
   delay(500);
   device.resetRuntimeState();  // Reset device to it's initial state
@@ -429,12 +484,11 @@ void BLEProximity::handleGAPEvent(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_p
           }
 
           // Check if we need to update the RSSI threshold and save to JSON
-          if (device.triggerUpdateJson) {
-            DPRINTF(1, "JSON Update Triggered");
+          if (device.triggerRssiUpdate) {
             DPRINTF(1, "Updating RSSI: %d -> %d dBm", device.data.rssi_threshold, param->read_rssi_cmpl.rssi);
             device.data.rssi_threshold = param->read_rssi_cmpl.rssi;  // Update RSSI in device
             device.update();                                          // Update the json file
-            notifyChar(rwCharacteristic, "RSSI updated");
+            notifyChar(cmdChar, "RSSI updated");
           }
 
           uint32_t delayOffset = device.data.rssi_command == "momOpen" || device.data.rssi_command == "momClose"
@@ -444,12 +498,12 @@ void BLEProximity::handleGAPEvent(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_p
               (millis() - device.rssiExecutedTimeStamp >= (uint32_t)device.data.rssi_command_delay * 1000 + delayOffset)) {
             DPRINTF(0, "Measured RSSI %d ≥ %d.\n Executing RSSI command: %s",
                     param->read_rssi_cmpl.rssi, device.data.rssi_threshold, device.data.rssi_command.c_str());
-            rwCharacteristic->setValue(device.data.rssi_command.c_str());              // Set the command characteristic value
-            if (commandCallback) commandCallback->onWrite(rwCharacteristic, nullptr);  // Call onWrite to handle the command
+            // cmdChar->setValue(device.data.rssi_command.c_str());       // Set the command characteristic value
+            enqueueCommand(device.data.rssi_command, CommandSource::Internal);  // Enqueue the command for processing
             device.rssiExecutedTimeStamp = millis();
           }
 
-          notifyChar(rProximityCharacteristic, String(param->read_rssi_cmpl.rssi).c_str());
+          notifyChar(proximityChar, String(param->read_rssi_cmpl.rssi).c_str());
           // END CRITICAL SECTION
           xSemaphoreGive(device.mutex);
         } else {
@@ -483,6 +537,25 @@ void BLEProximity::setFailsafeTimeout(uint32_t sec) {
 void BLEProximity::setFailsafeCommand(std::string& cmd) {
   DPRINTF(0, "BLEProximity::setFailsafeCommand(%s)", cmd);
   if (cmd == "open" || cmd == "close") failsafeCommand = cmd;
+}
+
+// Worker task to process commands from the queue
+void BLEProximity::commandWorkerTask(void* pvParameters) {
+  BLEProximity* self = static_cast<BLEProximity*>(pvParameters);
+  if (!self) {
+    vTaskDelete(nullptr);
+    return;
+  }
+
+  DPRINTF(0, "CommandWorker task started");
+
+  ProximityCommand cmd;
+  for (;;) {
+    if (xQueueReceive(self->commandQueue, &cmd, portMAX_DELAY) == pdTRUE) {
+      // Process the command outside of BTC_TASK
+      self->processCommand(cmd);
+    }
+  }
 }
 
 void BLEProximity::checkFailsafeTimeout() {
@@ -593,7 +666,7 @@ void ProximitySecurity::onAuthenticationComplete(esp_ble_auth_cmpl_t cmpl) {
       device.data.paired = cmpl.success;
 
       // This will make sure the initial RSSI is added to device and saved to the device file on a proximity request event
-      device.triggerUpdateJson = true;
+      device.triggerRssiUpdate = true;
     } else {
       DPRINTF(0,
               "Device retrieved from JSON:\n"
@@ -829,24 +902,46 @@ void ProximitySecurity::removeBondedDevice(esp_bd_addr_t mac) {
  */
 void CommandCallback::onWrite(BLECharacteristic* pChar, esp_ble_gatts_cb_param_t* param) {
   DPRINTF(0, "onWrite()");
-  if (!param) {
-    DPRINTF(0, " Called internally (e.g. param == nullptr)");
-    // Called internally (e.g. from onDisconnect)
-    // handle only pChar->getValue() cases
+
+  bool internalCall = (param == nullptr);
+
+  std::string value = pChar->getValue();
+  if (value.empty()) return;
+  CommandSource src = internalCall ? CommandSource::Internal
+                                   : CommandSource::External;
+  bleProx->enqueueCommand(value, src);
+}
+
+/**
+ * @brief Processes a proximity command received from a BLE client or internal source.
+ *
+ * This method handles various commands related to the proximity device, including
+ * state changes, configuration updates, and status queries. It performs necessary
+ * validations, updates the device state, and sends notifications back to the BLE
+ * client as needed.
+ *
+ * @param cmd The ProximityCommand structure containing the command value and source.
+ */
+void BLEProximity::processCommand(const ProximityCommand& cmd) {
+  const std::string value(cmd.value);
+  CommandSource src = cmd.source;
+
+  DPRINTF(0, "Processing command in worker: %s", value.c_str());
+
+  if (cmd.source == CommandSource::External) {
+    DPRINTF(0, "  Source: External (from BLE client)");
+  } else {
+    DPRINTF(0, "  Source: Internal (from server)");
   }
 
-  if (!bleProx->device.data.paired) {
+  if (!device.data.paired) {
     DPRINTF(3, "Illegal write attempt: device not paired");
     return;
   }
-
-  if (bleProx->device.data.is_blocked) {
+  if (device.data.is_blocked) {
     DPRINTF(3, "Illegal write attempt: device is blocked");
     return;
   }
-
-  std::string value = pChar->getValue();
-  DPRINTF(0, "CommandCallback received: %s", value.c_str());
 
   if (value.length() > 0) {
     bool isAdminMsg = false;
@@ -858,37 +953,45 @@ void CommandCallback::onWrite(BLECharacteristic* pChar, esp_ble_gatts_cb_param_t
     bool bSetMomDelay = String(value.c_str()).startsWith("momDelay=");              // momentary switch delay
     bool bSetRssiCmd = String(value.c_str()).startsWith("rssiCmd=");                // RSSI command
     bool bSetRssiDelay = String(value.c_str()).startsWith("rssiDelay=");            // RSSI command delay
-    bool bSetDisconnectCmd = String(value.c_str()).startsWith("onDisconnectCmd=");  // on disconnect command
-    bleProx->device.triggerUpdateJson = (value == "rssiUpdate");                    // RSSI update on next proximity event
-    bool bSetFailsafeCmd = String(value.c_str()).startsWith("failsafeCmd=");        // failsafe open/close
-    bool bSetFailsafeTimer = String(value.c_str()).startsWith("failsafeTimer=");    // failsafe timeout in sec
-    bool whoami = (value == "whoami");
-    bool isValidCommand = (bSetName || bState || bSetMomDelay || bSetRssiCmd ||
-                           bSetRssiDelay || bSetDisconnectCmd ||
-                           bSetFailsafeCmd || bSetFailsafeTimer || whoami ||
-                           bleProx->device.triggerUpdateJson ||
-                           value == "json" || value == "format" || value == "status");
+    bool bSetRssiUpdate = (value == "rssiUpdate");                                  // RSSI update command
+    bool bWhoAmI = (value == "whoami");                                             // request device info
+    bool bSetDisconnectCmd = String(value.c_str()).startsWith("onDisconnectCmd=");  // on disconnect command (admin)
+    bool bSetFailsafeCmd = String(value.c_str()).startsWith("failsafeCmd=");        // failsafe open/close (admin)
+    bool bSetFailsafeTimer = String(value.c_str()).startsWith("failsafeTimer=");    // failsafe timeout in sec (admin)
+    bool bAllUsers = (value == "allUsers");                                         // request all users (admin)
+    bool bFormat = (value == "format");                                             // format file system (admin)
+    bool bReboot = (value == "reboot");                                             // reboot device (admin)
 
+    bool isValidCommand = (bState || bSetName || bSetMomDelay || bSetRssiCmd ||
+                           bSetRssiDelay || bSetRssiUpdate || bWhoAmI ||
+                           bSetDisconnectCmd || bSetFailsafeCmd || bSetFailsafeTimer ||
+                           bAllUsers || bFormat || bReboot);
+
+    const char* invalidMsg = "Invalid command";
     if (!isValidCommand) {
-      DPRINTF(3, "Invalid value received: '%s'", value.c_str());
-      notifyChar(rwCharacteristic, "Invalid command");
+      DPRINTF(3, "%s: '%s'", invalidMsg, value.c_str());
+      notifyChar(cmdChar, invalidMsg);
       return;
     }
 
-    if (bState) bleProx->setSwitchState(value);  // Update the switch state according to the command
+    if (bState) {
+      setSwitchState(value);  // Update the switch state according to the command
+      return;
+    }
 
     // Update the device name if the command is "name="
     if (bSetName) {
       std::string newName = value.substr(5);  // Skip "name="
       if (newName.length() > 0) {
-        if (bleProx->device.data.name != newName) {
-          bleProx->device.data.name = newName;
-          bleProx->device.update();
-          notifyChar(rwCharacteristic, ("Name set to: " + newName).c_str());
+        if (device.data.name != newName) {  // Only update if the name has changed
+          device.data.name = newName;
+          device.update();
+          notifyChar(cmdChar, ("Name set to: " + newName).c_str());
           DPRINTF(1, "Device name set to: %s", newName.c_str());
         }
+        return;
       } else {
-        notifyChar(rwCharacteristic, "Invalid name");
+        notifyChar(cmdChar, "Invalid name");
         DPRINTF(3, "Invalid name received");
       }
     }
@@ -899,8 +1002,9 @@ void CommandCallback::onWrite(BLECharacteristic* pChar, esp_ble_gatts_cb_param_t
       long ms = strtol(s, &endp, 10);
 
       if (endp == s) {
-        notifyChar(rwCharacteristic, "Invalid momDelay value");
-        DPRINTF(3, "Invalid momDel payload: %s", value.c_str());
+        std::string msg = "Invalid momDelay payload";
+        notifyChar(cmdChar, msg.c_str());
+        DPRINTF(3, "%s: %s", msg.c_str(), value.c_str());
         return;
       }
 
@@ -908,21 +1012,23 @@ void CommandCallback::onWrite(BLECharacteristic* pChar, esp_ble_gatts_cb_param_t
       if (ms < 10) ms = 10;        // minimal 10 ms to prevent '0'
       if (ms > 30000) ms = 30000;  // upper limit 30s within int16_t
 
-      bleProx->device.data.mom_switch_delay = static_cast<int16_t>(ms);
-      bleProx->device.update();
+      device.data.mom_switch_delay = static_cast<int16_t>(ms);
+      device.update();
 
       char buf[48];
       snprintf(buf, sizeof(buf), "momDel=%ld", ms);
-      notifyChar(rwCharacteristic, buf);
+      notifyChar(cmdChar, buf);
       DPRINTF(1, "mom_switch_delay set to %ld ms", ms);
+      return;
     }
 
     if (bSetRssiCmd) {
       std::string newCmd = value.substr(8);  // Skip "rssiCmd="
-      bleProx->device.data.rssi_command = newCmd;
-      bleProx->device.update();
-      notifyChar(rwCharacteristic, ("rssiCmd set to: " + newCmd).c_str());
+      device.data.rssi_command = newCmd;
+      device.update();
+      notifyChar(cmdChar, ("rssiCmd set to: " + newCmd).c_str());
       DPRINTF(1, "rssiCmd set to: %s", newCmd.c_str());
+      return;
     }
 
     if (bSetRssiDelay) {
@@ -931,7 +1037,7 @@ void CommandCallback::onWrite(BLECharacteristic* pChar, esp_ble_gatts_cb_param_t
       long sec = strtol(s, &endp, 10);
 
       if (endp == s) {
-        notifyChar(rwCharacteristic, "Invalid rssiDelay value");
+        notifyChar(cmdChar, "Invalid rssiDelay value");
         DPRINTF(3, "Invalid rssiDelay payload: %s", value.c_str());
         return;
       }
@@ -940,94 +1046,117 @@ void CommandCallback::onWrite(BLECharacteristic* pChar, esp_ble_gatts_cb_param_t
       if (sec < 0) sec = 0;        // minimaal 0s
       if (sec > 3600) sec = 3600;  // bovengrens 1 uur
 
-      bleProx->device.data.rssi_command_delay = static_cast<int16_t>(sec);
-      bleProx->device.update();
+      device.data.rssi_command_delay = static_cast<int16_t>(sec);
+      device.update();
 
       char buf[48];
       snprintf(buf, sizeof(buf), "rssiDelay=%ld", sec);
-      notifyChar(rwCharacteristic, buf);
+      notifyChar(cmdChar, buf);
       DPRINTF(1, "rssi_command_delay set to %lds", sec);
+      return;
     }
 
-    if (bSetDisconnectCmd) {
+    if (bSetRssiUpdate) {
+      device.triggerRssiUpdate = bSetRssiUpdate;  // RSSI update on next proximity event
+      return;
+    }
+
+    // Report device info in json format
+    if (bWhoAmI) {
+      const std::string& info = device.getJsonDevInfo();
+      notifyChar(cmdChar, info.c_str());
+      // notifyChar(switchChar, info.c_str());
+      DPRINTF(1, info.c_str());
+      return;
+    }
+
+    if (bSetDisconnectCmd && device.data.is_admin) {
       std::string newCmd = value.substr(16);  // Skip "onDisconnectCmd="
-      bleProx->device.data.on_disconnect_command = newCmd;
-      bleProx->device.update();
-      notifyChar(rwCharacteristic, ("onDisconnectCmd set to: " + newCmd).c_str());
+      device.data.on_disconnect_command = newCmd;
+      device.update();
+      notifyChar(cmdChar, ("onDisconnectCmd set to: " + newCmd).c_str());
       DPRINTF(1, "onDisconnectCmd set to: %s", newCmd.c_str());
-    }
+      return;
+    } else if (bSetDisconnectCmd)
+      isAdminMsg = true;
 
-    if (bSetFailsafeCmd && bleProx->device.data.is_admin) {
+    if (bSetFailsafeCmd && device.data.is_admin) {
       std::string cmd = value.substr(strlen("failsafeCmd="));  // after "failsafeCmd="
 
       if (cmd != "open" && cmd != "close") {
-        notifyChar(rwCharacteristic, "Invalid failsafeCmd (use 'open' or 'close')");
+        notifyChar(cmdChar, "Invalid failsafeCmd (use 'open' or 'close')");
         DPRINTF(3, "Invalid failsafeCmd: %s", cmd.c_str());
         return;
       }
 
-      bleProx->setFailsafeCommand(cmd);
-      notifyChar(rwCharacteristic, ("failsafeCmd set to: " + cmd).c_str());
+      setFailsafeCommand(cmd);
+      notifyChar(cmdChar, ("failsafeCmd set to: " + cmd).c_str());
       DPRINTF(1, "failsafeCmd set to: %s", cmd.c_str());
+      return;
     } else if (bSetFailsafeCmd)
       isAdminMsg = true;
 
-    if (bSetFailsafeTimer && bleProx->device.data.is_admin) {
+    if (bSetFailsafeTimer && device.data.is_admin) {
       const char* s = value.c_str() + strlen("failsafeTimer=");  // after "failsafeTimer="
       char* endp = nullptr;
       long sec = strtol(s, &endp, 10);
 
       if (endp == s || sec < 0 || sec > 86400L) {  // max 24 hours
-        notifyChar(rwCharacteristic, "Invalid failsafeTimer value");
+        notifyChar(cmdChar, "Invalid failsafeTimer value");
         DPRINTF(3, "Invalid failsafeTimer payload: %s", value.c_str());
         return;
       }
 
-      bleProx->setFailsafeTimeout((uint32_t)sec);
+      setFailsafeTimeout((uint32_t)sec);
 
       if (sec == 0) {
-        notifyChar(rwCharacteristic, "Failsafe disabled (timer=0)");
+        notifyChar(cmdChar, "Failsafe disabled (timer=0)");
         DPRINTF(1, "Failsafe disabled via failsafeTimer=0");
       } else {
         std::string msg = "Failsafe timer set to " + std::to_string(sec) + " sec";
-        notifyChar(rwCharacteristic, msg.c_str());
+        notifyChar(cmdChar, msg.c_str());
         DPRINTF(1, msg.c_str());
       }
+      return;
     } else if (bSetFailsafeTimer)
       isAdminMsg = true;
 
-    // Report device info in json format
-    if (whoami) {
-      notifyChar(rwCharacteristic, bleProx->device.getInfoJson().c_str());
-    }
-
     // Publish the JSON file if requested
-    if (value == "json" && bleProx->device.data.is_admin) {
-      bleProx->device.printJsonFile();  // TODO: Do NOT enable this in production, it's insecure!
-      notifyChar(rwCharacteristic, "Disabled for security reasons");
-    } else if (value == "json")
+    if (bAllUsers && device.data.is_admin) {
+      notifyChar(cmdChar, device.printJsonFile().c_str());
+      return;
+    } else if (bAllUsers)
       isAdminMsg = true;
 
     // Format the LittleFS if requested
-    // TODO: FIX if multiple partitions are used
-    if (value == "format" && bleProx->device.data.is_admin) {
-      if (!bleProx->device.getFSHandle().format()) {
-        notifyChar(rwCharacteristic, "Format failed");
+    if (bFormat && device.data.is_admin) {
+      if (!device.getFSHandle().format()) {
+        notifyChar(cmdChar, "Format failed");
         DPRINTF(3, "Failed to format file system\n");
       } else {
-        notifyChar(rwCharacteristic, "File system formatted successfully");
-        DPRINTF(0, "File system formatted successfully");
+        const char* fmtMsg = "File system formatted successfully";
+        notifyChar(cmdChar, fmtMsg);
+        DPRINTF(0, fmtMsg);
         ProximitySecurity::removeBondedDevices();
+        delay(1000);
+        esp_restart();  // Restart after format
       }
-    } else if (value == "format")
+      return;
+    } else if (bFormat)
+      isAdminMsg = true;
+
+    if (bReboot && device.data.is_admin) {
+      notifyChar(cmdChar, "Rebooting device...");
+      DPRINTF(1, "Rebooting device as per command");
+      delay(1000);
+      esp_restart();
+      return;
+    } else if (bReboot)
       isAdminMsg = true;
 
     if (isAdminMsg) {
-      std::string msg = "Only admin can do that";
-      notifyChar(rwCharacteristic, msg.c_str());
-      DPRINTF(3, msg.c_str());
+      notifyChar(cmdChar, invalidMsg);  // Show "Invalid command" for non-admins
+      DPRINTF(3, "Only admin can do that");
     }
   }
 }
-
-CommandCallback::CommandCallback(BLEProximity* BLEProx) : bleProx(BLEProx) {}
