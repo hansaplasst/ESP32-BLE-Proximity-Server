@@ -448,7 +448,6 @@ void BLEProximity::onDisconnect(BLEServer* pServer, esp_ble_gatts_cb_param_t* pa
   deviceConnected = false;
   lastFailsafeActivityMs = millis();
 
-  // cmdChar->setValue(device.data.on_disconnect_command.c_str());       // Set the disconnect command value
   enqueueCommand(device.data.on_disconnect_command, CommandSource::Internal);  // Enqueue the command for processing
   DPRINTF(1, "Device disconnected: %s (%s)\n\tadvertising restarted\n", device.data.name.c_str(), device.data.mac.c_str());
   delay(500);
@@ -951,9 +950,9 @@ void BLEProximity::processCommand(const ProximityCommand& cmd) {
                    value == "momOpen" || value == "momClose" || value == "status");
     bool bSetName = String(value.c_str()).startsWith("name=");                      // device name
     bool bSetMomDelay = String(value.c_str()).startsWith("momDelay=");              // momentary switch delay
+    bool bSetRssiUpdate = (value == "rssiUpdate");                                  // RSSI update command
     bool bSetRssiCmd = String(value.c_str()).startsWith("rssiCmd=");                // RSSI command
     bool bSetRssiDelay = String(value.c_str()).startsWith("rssiDelay=");            // RSSI command delay
-    bool bSetRssiUpdate = (value == "rssiUpdate");                                  // RSSI update command
     bool bWhoAmI = (value == "whoami");                                             // request device info
     bool bSetDisconnectCmd = String(value.c_str()).startsWith("onDisconnectCmd=");  // on disconnect command (admin)
     bool bSetFailsafeCmd = String(value.c_str()).startsWith("failsafeCmd=");        // failsafe open/close (admin)

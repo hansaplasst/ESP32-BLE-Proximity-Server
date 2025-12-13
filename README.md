@@ -92,15 +92,17 @@ A framework for developing Bluetooth Low Energy (BLE) proximity-based applicatio
      - `rssiUpdate` — Command to update Proximity threshold. Place device within range of the server then send `rssiUpdate`
      - `rssiCmd=<open/close/momOpen/momClose/toggle>` — Sets the command to execute when RSSI above threshold. If empty, no command is executed.
      - `rssiDelay=<sec>` — Sets delay (s) for `rssiCmd` to repeat when above threshold (min 1s, max 3600s, default: 5 seconds)
+   - send `whoami` to get your device settings (via `COMMAND_UUID`)
+   - send `setName=<name>` to (re)set your device name.
    - Send command to execute on disconnect (via `COMMAND_UUID`)
-     - `onDisconnectCmd=<open/close/momOpen/momClose/toggle>` — Sets command to execute when device is disconnect/out-of-range
+     - `onDisconnectCmd=<open/close/momOpen/momClose/toggle>` — Sets command to execute when device is disconnect/out-of-range (default `close`, admin only)
    - Send command to (de)activate failsafe (via `COMMAND_UUID`)
-     - `failsafeCmd=<open/close>` — Sets the command to execute when failsafeTimer is reached. **Currently failsafeCmd is set to `close`. Changing this parameter will not survive a reboot.**
-     - `failsafeTimer=<sec>` — Set to 0, to deactivate failsafe, else time in seconds to activate the failsafeCmd. **Currently failsafeTimer is set to 30 minutes. Changing this parameter will not survive a reboot.**
+     - `failsafeCmd=<open/close>` — Sets the command to execute when failsafeTimer is reached (admin only). **Currently failsafeCmd is set to `close`. Changing this parameter will not survive a reboot.**
+     - `failsafeTimer=<sec>` — Set to 0, to deactivate failsafe, else time in seconds to activate the failsafeCmd (admin only). **Currently failsafeTimer is set to 30 minutes. Changing this parameter will not survive a reboot.**
    - Other `COMMAND_UUID` commands:
-     - `setName=<name>` — Sets the device name.
-     - `json` — Returns the list of authorized devices file in JSON (admin only).
+     - `allUsers` — Returns the list of authorized devices file in JSON (admin only).
      - `format` — Formats the filesystem (admin only).
+     - `reboot` — Reboots the server (admin only).
 
 ## Device Authorization
 
