@@ -908,7 +908,10 @@ void CommandCallback::onWrite(BLECharacteristic* pChar, esp_ble_gatts_cb_param_t
   if (value.empty()) return;
   CommandSource src = internalCall ? CommandSource::Internal
                                    : CommandSource::External;
-  bleProx->enqueueCommand(value, src);
+  if (bleProx->device.triggerRssiUpdate)
+    bleProx->enqueueCommand("rssiUpdate", CommandSource::Internal);  // Trigger RSSI update if requested
+  else
+    bleProx->enqueueCommand(value, src);
 }
 
 /**
