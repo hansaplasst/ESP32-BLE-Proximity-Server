@@ -59,6 +59,7 @@ static void SwitchNotifyTask(void* arg) {
       // The ONLY place that modifies the physical state and global switchState:
       switchState = msg.target_on;
       if (proximityServer) {
+        proximityServer->updateSwitchLed(switchState);
         // Update the physical pin via the BLEProximity instance and send notification
         digitalWrite(proximityServer->device.getSwitchPin(), switchState ? HIGH : LOW);
 
@@ -293,6 +294,62 @@ void BLEProximity::poll() {
 }
 
 /**
+ * @brief Configures the status LED or NeoPixel for visual feedback.
+ *
+ * This method sets up the status LED or NeoPixel based on the provided parameters.
+ * If a NeoPixel is used, it initializes the NeoPixel instance and sets its brightness.
+ * If a built-in LED is used, it configures the specified pin as an output.
+ *
+ * @param ledPin The GPIO pin number for the LED or NeoPixel data line.
+ * @param hasRgbLed True if using a NeoPixel RGB LED, false if using a built-in LED.
+ * @param brightness The brightness level for the NeoPixel (0-255).
+ */
+void BLEProximity::configureStatusLed(uint8_t ledPin, bool hasRgbLed, uint8_t brightness) {
+  statusLedPin = ledPin;
+  statusHasRgb = hasRgbLed;
+  statusRgbBrightness = brightness;
+
+  // Cleanup previous RGB instance if any
+  if (rgbLed) {
+    rgbLed->clear();
+    rgbLed->show();
+    delete rgbLed;
+    rgbLed = nullptr;
+  }
+
+  if (statusHasRgb) {
+    rgbLed = new Adafruit_NeoPixel(1, statusLedPin, NEO_GRB + NEO_KHZ800);
+    rgbLed->begin();
+    rgbLed->setBrightness(statusRgbBrightness);
+    rgbLed->clear();
+    rgbLed->show();                           // Prime RMT once
+    rgbOpenColor = rgbLed->Color(0, 255, 0);  // Green for "open"
+  } else {
+    pinMode(statusLedPin, OUTPUT);
+    digitalWrite(statusLedPin, LOW);
+  }
+}
+
+/**
+ * @brief Updates the status LED or NeoPixel to reflect the switch state.
+ *
+ * This method changes the color or state of the status LED or NeoPixel based on
+ * whether the switch is open or closed. If a NeoPixel is used, it sets the pixel
+ * color to green for "open" and turns it off for "closed". If a built-in LED is
+ * used, it sets the pin HIGH for "open" and LOW for "closed".
+ *
+ * @param isOpen True if the switch is open, false if closed.
+ */
+void BLEProximity::updateSwitchLed(bool isOpen) {
+  if (statusHasRgb && rgbLed) {
+    rgbLed->setPixelColor(0, isOpen ? rgbOpenColor : 0);
+    rgbLed->show();
+  } else {
+    digitalWrite(statusLedPin, isOpen ? HIGH : LOW);
+  }
+}
+
+/**
  * @brief Sets the proximity RSSI threshold for the device.
  *
  * This method updates the `rssi_threshold` field in the `device.data` structure
@@ -315,7 +372,6 @@ void BLEProximity::setProximityThreshold(int8_t rssi) {
  * @param state The current state of the switch, represented as a string ("OPEN" or "CLOSED").
  */
 void BLEProximity::notifySwitch(const char* state) {
-  // notifyChar(cmdChar, state);
   notifyChar(switchChar, state);
 }
 

@@ -1,5 +1,4 @@
 #include <Arduino.h>
-// #include <BleKeyboard.h>
 #include <dprintf.h>
 
 #include "BLEProximity.h"
@@ -29,6 +28,7 @@ void setup() {
     exit(3);
   }
   proximityServer = new BLEProximity(*proximityDevice);
+  proximityServer->configureStatusLed(38, true, 10);  // Configure built-in LED for visual feedback
   proximityServer->begin();
 
   // printESPInfo();  // Print ESP information for debugging

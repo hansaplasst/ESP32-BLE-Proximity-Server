@@ -2,6 +2,7 @@
 #define BLE_PROXIMITY_H
 
 #pragma once
+#include <Adafruit_NeoPixel.h>
 #include <BLE2902.h>
 #include <BLEDevice.h>
 #include <BLEServer.h>
@@ -38,10 +39,12 @@ class BLEProximity : public BLEServerCallbacks {
   void begin();
   void poll();
 
-  void setProximityThreshold(int8_t rssi);                         // Initialize Proximity threshold (optional)
-  void setSwitchState(const std::string& value);                   // "OPEN" or "CLOSED"
-  void notifySwitch(const char* state);                            // core-1 updates the switch characteristic
-  void enqueueCommand(const std::string& cmd, CommandSource src);  // Enqueue a command for processing
+  void configureStatusLed(uint8_t ledPin, bool hasRgbLed, uint8_t brightness);  // Configure built-in LED or NeoPixel for visual feedback
+  void updateSwitchLed(bool isOpen);                                            // Update the built-in LED or NeoPixel to reflect switch state
+  void setProximityThreshold(int8_t rssi);                                      // Initialize Proximity threshold (optional)
+  void setSwitchState(const std::string& value);                                // "OPEN" or "CLOSED"
+  void notifySwitch(const char* state);                                         // core-1 updates the switch characteristic
+  void enqueueCommand(const std::string& cmd, CommandSource src);               // Enqueue a command for processing
 
   // Callbacks
   void onConnect(BLEServer* pServer, esp_ble_gatts_cb_param_t* param) override;
@@ -76,6 +79,12 @@ class BLEProximity : public BLEServerCallbacks {
   uint32_t failsafeTimeoutMs = 1800000;   // Default 30 min (1800000ms)
   uint32_t lastFailsafeActivityMs = 0;    // Timestamp of last disconnect
   void checkFailsafeTimeout();            // To check failsafe
+
+  uint8_t statusLedPin = 2;
+  bool statusHasRgb = false;
+  uint8_t statusRgbBrightness = 10;
+  Adafruit_NeoPixel* rgbLed = nullptr;
+  uint32_t rgbOpenColor = 0;
 };
 
 class ProximitySecurity : public BLESecurityCallbacks {
