@@ -46,6 +46,12 @@ class BLEProximity : public BLEServerCallbacks {
   void notifySwitch(const char* state);                                         // core-1 updates the switch characteristic
   void enqueueCommand(const std::string& cmd, CommandSource src);               // Enqueue a command for processing
 
+  // Custom command handler for commands outside the Proximity server domain.
+  // Return true if handled. Optionally write a response into out (may be nullptr).
+  using CustomCommandHandler =
+      bool (*)(const ProximityCommand& cmd, ProximityDevice& device, char* out, size_t outLen);
+  static void setCustomCommandHandler(CustomCommandHandler handler);  // Set custom command handler
+
   // Callbacks
   void onConnect(BLEServer* pServer, esp_ble_gatts_cb_param_t* param) override;
   void onDisconnect(BLEServer* pServer, esp_ble_gatts_cb_param_t* param) override;
@@ -53,7 +59,6 @@ class BLEProximity : public BLEServerCallbacks {
   void disconnectAll();
 
   // Failsafe
-  // TODO: save this to a Proximity config which is loaded during boot.
   void setFailsafeTimeout(uint32_t sec);
   uint32_t getFailsafeTimeout() const { return failsafeTimeoutMs / 1000UL; }
   void setFailsafeCommand(std::string& cmd);
@@ -85,6 +90,8 @@ class BLEProximity : public BLEServerCallbacks {
   uint8_t statusRgbBrightness = 10;
   Adafruit_NeoPixel* rgbLed = nullptr;
   uint32_t rgbOpenColor = 0;
+
+  static CustomCommandHandler s_customCommandHandler;
 };
 
 class ProximitySecurity : public BLESecurityCallbacks {

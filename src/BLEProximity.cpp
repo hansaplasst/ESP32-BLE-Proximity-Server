@@ -40,6 +40,8 @@ extern BLEProximity* proximityServer;
 static bool switchState = false;
 static inline const char* stateToStr(bool on) { return on ? "OPEN" : "CLOSED"; }
 
+BLEProximity::CustomCommandHandler BLEProximity::s_customCommandHandler = nullptr;
+
 /**
  * @brief Task function to process switch state change messages from a queue.
  *
@@ -971,6 +973,20 @@ void CommandCallback::onWrite(BLECharacteristic* pChar, esp_ble_gatts_cb_param_t
 }
 
 /**
+ * @brief Sets the custom command handler for processing proximity commands.
+ *
+ * This method allows the user to set a custom command handler function that will be
+ * invoked when processing proximity commands. The custom handler can be used to extend
+ * or modify the behavior of command processing.
+ *
+ * @param handler The CustomCommandHandler function to set as the command handler.
+ */
+void BLEProximity::setCustomCommandHandler(CustomCommandHandler handler) {
+  DPRINTF(0, "BLEProximity::setCustomCommandHandler()");
+  s_customCommandHandler = handler;
+}
+
+/**
  * @brief Processes a proximity command received from a BLE client or internal source.
  *
  * This method handles various commands related to the proximity device, including
@@ -1024,6 +1040,17 @@ void BLEProximity::processCommand(const ProximityCommand& cmd) {
                            bSetRssiDelay || bSetRssiUpdate || bWhoAmI ||
                            bSetDisconnectCmd || bSetFailsafeCmd || bSetFailsafeTimer ||
                            bAllUsers || bFormat || bReboot);
+
+    if (s_customCommandHandler) { // Invoke custom command handler if set
+      char reply[64] = {0};
+      const bool handled = s_customCommandHandler(cmd, device, reply, sizeof(reply));
+      if (handled) {
+        if (reply[0] != '\0') {
+          notifyChar(cmdChar, reply);
+        }
+        return;
+      }
+    }
 
     const char* invalidMsg = "Invalid command";
     if (!isValidCommand) {
