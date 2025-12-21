@@ -1041,13 +1041,16 @@ void BLEProximity::processCommand(const ProximityCommand& cmd) {
                            bSetDisconnectCmd || bSetFailsafeCmd || bSetFailsafeTimer ||
                            bAllUsers || bFormat || bReboot);
 
-    if (s_customCommandHandler) { // Invoke custom command handler if set
+    if (!isValidCommand && s_customCommandHandler) {
       char reply[64] = {0};
       const bool handled = s_customCommandHandler(cmd, device, reply, sizeof(reply));
       if (handled) {
-        if (reply[0] != '\0') {
-          notifyChar(cmdChar, reply);
+        // Always give BLE feedback; handler may provide detailed error text.
+        if (reply[0] == '\0') {
+          strncpy(reply, "OK", sizeof(reply));
+          reply[sizeof(reply) - 1] = '\0';
         }
+        notifyChar(cmdChar, reply);
         return;
       }
     }
@@ -1073,11 +1076,15 @@ void BLEProximity::processCommand(const ProximityCommand& cmd) {
           device.update();
           notifyChar(cmdChar, ("Name set to: " + newName).c_str());
           DPRINTF(1, "Device name set to: %s", newName.c_str());
+        } else {
+          notifyChar(cmdChar, "Name unchanged");
+          DPRINTF(0, "Device name unchanged: %s", newName.c_str());
         }
         return;
       } else {
         notifyChar(cmdChar, "Invalid name");
         DPRINTF(3, "Invalid name received");
+        return;
       }
     }
 
