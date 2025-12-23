@@ -75,7 +75,7 @@ A framework for developing Bluetooth Low Energy (BLE) proximity-based applicatio
 
 1. **Build and upload** the firmware to your ESP32.
 2. **Open the Serial Monitor** to view debug output.
-3. **Pair with the ESP32** using a BLE-capable app (e.g., nRF Connect).
+3. **Pair via Bluetooth with the ESP32** using a BLE-capable app (e.g., nRF Connect). Default password is "password".
 4. **Interact with BLE characteristics:**
    - Read RSSI (proximity) (via `RSSI_UUID`)
    - Read Switch state and notifications (via `SWITCH_UUID`)
@@ -104,9 +104,13 @@ A framework for developing Bluetooth Low Energy (BLE) proximity-based applicatio
      - `format` — Formats the filesystem (admin only).
      - `reboot` — Reboots the server (admin only).
 
+## Custom commands
+
+You can add custom commands by setting a custom command handler. See: examples/customCommandHandler.cpp
+
 ## Device Authorization
 
-- Devices are authorized and stored in `/authorized_devices.json` on LittleFS.
+- Devices are authorized and stored in `/authorized_devices.json` by default on LittleFS.
 - Each device entry includes:
   - **device_id**: Device UUID
   - **name**: Default: `"unknown"`

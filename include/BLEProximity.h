@@ -46,10 +46,29 @@ class BLEProximity : public BLEServerCallbacks {
   void notifySwitch(const char* state);                                         // core-1 updates the switch characteristic
   void enqueueCommand(const std::string& cmd, CommandSource src);               // Enqueue a command for processing
 
-  // Custom command handler for commands outside the Proximity server domain.
-  // Return true if handled. Optionally write a response into out (may be nullptr).
-  using CustomCommandHandler =
-      bool (*)(const ProximityCommand& cmd, ProximityDevice& device, char* out, size_t outLen);
+  using CustomCommandHandler = bool (*)(const ProximityCommand& cmd, ProximityDevice& device, char* out, size_t outLen);
+  /**
+   * @brief Custom command handler callback.
+   *
+   * This handler allows applications to extend the BLEProximity command set
+   * without modifying the BLEProximity core.
+   *
+   * The handler is only invoked for commands that are NOT recognized as
+   * built-in proximity commands.
+   *
+   * @param cmd       The received proximity command (raw value + source).
+   * @param device    Reference to the current proximity device context.
+   * @param reply     Output buffer for a response message to the BLE client.
+   * @param replyLen  Length of the reply buffer.
+   *
+   * @return true if the command was recognized and handled (success or failure).
+   * @return false if the command is not handled by this handler.
+   *
+   * @note
+   * - If true is returned, BLEProximity will always send a BLE notification.
+   * - If reply is empty, a default "OK" response may be sent.
+   * - Returning false allows BLEProximity to fall back to "Invalid command".
+   */
   static void setCustomCommandHandler(CustomCommandHandler handler);  // Set custom command handler
 
   // Callbacks

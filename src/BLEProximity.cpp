@@ -399,7 +399,7 @@ void BLEProximity::enqueueCommand(const std::string& cmd, CommandSource src) {
   pc.source = src;
 
   if (xQueueSendToBack(commandQueue, &pc, 0) != pdPASS) {
-    DPRINTF(2, "Command queue full, dropping command: %s", cmd.c_str());
+    DPRINTF(2, "Command queue full, dropping command: %s", pc.value);
   }
 }
 
@@ -962,6 +962,7 @@ void CommandCallback::onWrite(BLECharacteristic* pChar, esp_ble_gatts_cb_param_t
 
   bool internalCall = (param == nullptr);
 
+  if (!pChar) return;  // Retyurn when pChar == nullptr
   std::string value = pChar->getValue();
   if (value.empty()) return;
   CommandSource src = internalCall ? CommandSource::Internal
@@ -973,13 +974,12 @@ void CommandCallback::onWrite(BLECharacteristic* pChar, esp_ble_gatts_cb_param_t
 }
 
 /**
- * @brief Sets the custom command handler for processing proximity commands.
+ * @brief Set the global custom command handler.
  *
- * This method allows the user to set a custom command handler function that will be
- * invoked when processing proximity commands. The custom handler can be used to extend
- * or modify the behavior of command processing.
+ * This handler will be invoked from BLEProximity::processCommand()
+ * when a received command does not match any built-in proximity command.
  *
- * @param handler The CustomCommandHandler function to set as the command handler.
+ * @param handler Pointer to the custom handler function.
  */
 void BLEProximity::setCustomCommandHandler(CustomCommandHandler handler) {
   DPRINTF(0, "BLEProximity::setCustomCommandHandler()");
@@ -993,11 +993,14 @@ void BLEProximity::setCustomCommandHandler(CustomCommandHandler handler) {
  * state changes, configuration updates, and status queries. It performs necessary
  * validations, updates the device state, and sends notifications back to the BLE
  * client as needed.
+ * Custom commands are processed if the custom command handler is set.
+ *
+ * @see setCustomCommandHandler(handle);
  *
  * @param cmd The ProximityCommand structure containing the command value and source.
  */
 void BLEProximity::processCommand(const ProximityCommand& cmd) {
-  const std::string value(cmd.value);
+  const std::string value(cmd.value, strnlen(cmd.value, CMD_MAX_LEN));
   CommandSource src = cmd.source;
 
   DPRINTF(0, "Processing command in worker: %s", value.c_str());
