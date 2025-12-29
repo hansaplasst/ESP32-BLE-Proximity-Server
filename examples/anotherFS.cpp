@@ -1,12 +1,9 @@
 #include <Arduino.h>
-// #include <BleKeyboard.h>
-// #include <LittleFS.h>
 #include <dprintf.h>
 
 #include "BLEProximity.h"
 
-// #define LOG_INFO_TAG "I"  // Log tag for informational messages
-const char* deviceName = DEV_NAME;
+const char* deviceName = "BLE Proximity Server";
 
 fs::LittleFSFS fs2;
 
@@ -14,14 +11,10 @@ BLEProximity* proximityServer = nullptr;
 ProximityDevice device(deviceName, fs2);
 
 void setup() {
-  Serial.begin(BAUDRATE);
-  while (!Serial) {
-    ;  // Wait for serial port to connect. Needed for native USB
-  }
+  Serial.begin(115200);
+  delay(5000);  // Give serial console a little time to settle
 
-  delay(5000);
   DPRINTF(1, "Setup started");
-  Serial.setDebugOutput(true);
 
   pinMode(LED_BUILTIN, OUTPUT);
   digitalWrite(LED_BUILTIN, HIGH);  // Turn the RGB LED white
