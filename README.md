@@ -1,6 +1,6 @@
 # ESP32 BLE Proximity Server
 
-A framework for developing Bluetooth Low Energy (BLE) proximity-based applications on the ESP32. This project demonstrates secure BLE pairing, device authorization, proximity (RSSI) reporting, and remote control features (e.g., switch open/close). It stores device settings on persistent storage using LittleFS.
+A framework for developing Bluetooth Low Energy (BLE) proximity-based applications on the ESP32. This project demonstrates secure BLE pairing, device authorization, proximity (RSSI) reporting and alerts, and remote control features (e.g., switch open/close). It stores device settings on persistent storage using LittleFS.
 
 ## Features
 
@@ -22,11 +22,11 @@ A framework for developing Bluetooth Low Energy (BLE) proximity-based applicatio
 
 ```
 .
-├── src/           # Main source code (main.cpp, ble_server.cpp)
-├── include/       # Header files (ble_server.h)
-├── libdeps/       # PlatformIO library dependencies
-├── README.md      # This file
+├── examples/      # Proximity examples
+├── include/       # Header files
+├── src/           # Main source code
 ├── platformio.ini # PlatformIO project configuration
+├── README.md      # This file
 └── LICENSE        # License information
 ```
 
@@ -106,7 +106,7 @@ A framework for developing Bluetooth Low Energy (BLE) proximity-based applicatio
 
 ## Custom commands
 
-You can add custom commands by setting a custom command handler. See: examples/customCommandHandler.cpp
+You can add custom commands by setting a custom command handler. See: examples/customCommands.cpp
 
 ## Device Authorization
 
