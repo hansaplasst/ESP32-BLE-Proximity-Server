@@ -362,6 +362,8 @@ void BLEProximity::updateSwitchLed(bool isOpen) {
  * @param rssi The RSSI threshold value to set (in dBm).
  */
 void BLEProximity::setProximityThreshold(int8_t rssi) {
+  if (rssi > 0) rssi = 0;
+  if (rssi < -100) rssi = -100;
   device.data.rssi_threshold = rssi;
 }
 
@@ -1029,6 +1031,7 @@ void BLEProximity::processCommand(const ProximityCommand& cmd) {
     bool bSetName = String(value.c_str()).startsWith("name=");                      // device name
     bool bSetMomDelay = String(value.c_str()).startsWith("momDelay=");              // momentary switch delay
     bool bSetRssiUpdate = (value == "rssiUpdate");                                  // RSSI update command
+    bool bSetManualRssi = String(value.c_str()).startsWith("rssiSet=");             // manual RSSI set
     bool bSetRssiCmd = String(value.c_str()).startsWith("rssiCmd=");                // RSSI command
     bool bSetRssiDelay = String(value.c_str()).startsWith("rssiDelay=");            // RSSI command delay
     bool bWhoAmI = (value == "whoami");                                             // request device info
@@ -1039,8 +1042,8 @@ void BLEProximity::processCommand(const ProximityCommand& cmd) {
     bool bFormat = (value == "format");                                             // format file system (admin)
     bool bReboot = (value == "reboot");                                             // reboot device (admin)
 
-    bool isValidCommand = (bState || bSetName || bSetMomDelay || bSetRssiCmd ||
-                           bSetRssiDelay || bSetRssiUpdate || bWhoAmI ||
+    bool isValidCommand = (bState || bSetName || bSetMomDelay || bSetManualRssi ||
+                           bSetRssiCmd || bSetRssiDelay || bSetRssiUpdate || bWhoAmI ||
                            bSetDisconnectCmd || bSetFailsafeCmd || bSetFailsafeTimer ||
                            bAllUsers || bFormat || bReboot);
 
@@ -1114,6 +1117,31 @@ void BLEProximity::processCommand(const ProximityCommand& cmd) {
       snprintf(buf, sizeof(buf), "momDel=%ld", ms);
       notifyChar(cmdChar, buf);
       DPRINTF(1, "mom_switch_delay set to %ld ms", ms);
+      return;
+    }
+
+    if (bSetManualRssi) {
+      const char* s = value.c_str() + 8;  // na "rssiSet="
+      char* endp = nullptr;
+      long rssi = strtol(s, &endp, 10);
+
+      if (endp == s) {
+        notifyChar(cmdChar, "Invalid rssi value");
+        DPRINTF(3, "Invalid rssi payload: %s", value.c_str());
+        return;
+      }
+
+      if (rssi > 0) rssi = 0;
+      if (rssi < -100) rssi = -100;
+
+      setProximityThreshold(static_cast<int8_t>(rssi));
+      device.update();
+
+      char buf[48];
+      snprintf(buf, sizeof(buf), "RSSI set to: %ld dBm", rssi);
+      buf[(sizeof(buf) - 1)] = '\0';
+      notifyChar(cmdChar, buf);
+      DPRINTF(1, buf);
       return;
     }
 
