@@ -248,11 +248,13 @@ bool ProximityDevice::remove() {
  * @return device_id string or empty string if not found in JSON
  */
 std::string ProximityDevice::getDeviceID(const std::string& mac) {
-  if (mac.empty()) {
+  std::string macToUse = mac.empty() ? data.mac : mac;
+  if (macToUse.empty()) {
+    DPRINTF(3, "MAC address is empty");
     return std::string();
   }
 
-  BLEAddress addr(mac.c_str());
+  BLEAddress addr(macToUse.c_str());
   esp_bd_addr_t macAddr;
   memcpy(macAddr, addr.getNative(), sizeof(macAddr));
 
