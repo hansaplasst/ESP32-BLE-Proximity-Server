@@ -51,7 +51,9 @@ class ProximityDevice {
    * @param fileSyatem   LittleFS file system handle. Used for storing BLE device settings in a json file
    * @param jsonFileName The name of the JSON file to use for device settings.
    */
-  ProximityDevice(std::string name = "BLE Proximity Server", fs::LittleFSFS& fileSystem = LittleFS, const char* jsonFileName = "/authorized_devices.json");
+  ProximityDevice(std::string name = "BLE Proximity Server",
+                  fs::LittleFSFS& fileSystem = LittleFS,
+                  const char* jsonFileName = "/authorized_devices.json");
   ~ProximityDevice();
   ProximityDevice(const ProximityDevice&) = delete;             // Don't allow copies
   ProximityDevice& operator=(const ProximityDevice&) = delete;  // Don't allow copies
@@ -87,6 +89,7 @@ class ProximityDevice {
   bool remove();                                        // deletes data entry from JSON and clears resets the data entry to default
   bool triggerRssiUpdate = false;                       // Helper to trigger update in callback functions
   bool isAuthenticated = false;                         // True if device is authenticated, else false
+  std::string getDeviceID(const std::string& mac);      // Get device_id from mac address
   bool get(const std::string& deviceID);                // Retrieves device from JSON if exists and updates data struct
   bool reloadDevice(const std::string& deviceID = "");  // Update device data from json
   void setAdmin(bool value);                            // set data.is_admin to value and updates json

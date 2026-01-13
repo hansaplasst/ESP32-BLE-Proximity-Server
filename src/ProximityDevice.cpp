@@ -2,6 +2,10 @@
 
 #include <dprintf.h>
 
+#include <cstring>
+
+#include "BLEProximity.h"
+
 /**
  * @brief Constructs a ProximityDevice object and sets the device name, fileSystem and device settings file
  *
@@ -236,6 +240,36 @@ bool ProximityDevice::remove() {
 
   DPRINTF(1, "Device %s deleted from %s", data.device_id.c_str(), devicesFile);
   return true;
+}
+
+/**
+ * @brief Get device_id from mac address
+ * @param mac MAC address string
+ * @return device_id string or empty string if not found in JSON
+ */
+std::string ProximityDevice::getDeviceID(const std::string& mac) {
+  if (mac.empty()) {
+    return std::string();
+  }
+
+  BLEAddress addr(mac.c_str());
+  esp_bd_addr_t macAddr;
+  memcpy(macAddr, addr.getNative(), sizeof(macAddr));
+
+  std::string deviceID = ProximitySecurity::getHashedPeerKey(macAddr);
+  if (deviceID.empty()) {
+    return std::string();
+  }
+
+  if (!jsonDocument.is<JsonObject>()) {
+    return std::string();
+  }
+
+  if (!jsonDocument[deviceID.c_str()].is<JsonObject>()) {
+    return std::string();
+  }
+
+  return deviceID;
 }
 
 bool ProximityDevice::get(const std::string& deviceID) {
