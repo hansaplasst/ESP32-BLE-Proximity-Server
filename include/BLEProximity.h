@@ -140,6 +140,7 @@ class ProximitySecurity : public BLESecurityCallbacks {
  private:
   ProximityDevice& device;
 
+  uint32_t s_currentPasskey = 0;
   static PasskeyNotifyHandler s_passkeyHandler;
   static AuthResultHandler s_authResultHandler;
 

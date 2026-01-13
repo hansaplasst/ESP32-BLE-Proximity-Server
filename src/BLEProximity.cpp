@@ -646,10 +646,10 @@ void BLEProximity::checkFailsafeTimeout() {
 ProximitySecurity::ProximitySecurity(ProximityDevice& devData) : device(devData) {}
 
 uint32_t ProximitySecurity::onPassKeyRequest() {
-  uint32_t currentPasskey = random(100000, 999999);
-  DPRINTF(1, "Generated passkey: %06u", currentPasskey);
+  s_currentPasskey = random(100000, 999999);
+  DPRINTF(1, "Generated passkey: %06u", s_currentPasskey);
 
-  return currentPasskey;
+  return s_currentPasskey;
 }
 
 /** Passkey notify handler */
@@ -662,7 +662,7 @@ void ProximitySecurity::onPassKeyNotify(uint32_t passkey) {
 
 bool ProximitySecurity::onConfirmPIN(uint32_t passkey) {
   DPRINTF(0, "Confirming passkey: %06u", passkey);
-  return true;
+  return (passkey == s_currentPasskey && passkey != 0);
 }
 
 bool ProximitySecurity::onSecurityRequest() {
@@ -703,11 +703,6 @@ void ProximitySecurity::onAuthenticationComplete(esp_ble_auth_cmpl_t cmpl) {
 
   std::string macStr = BLEAddress(cmpl.bd_addr).toString();
 
-  if (device.data.is_blocked) {
-    esp_ble_gap_disconnect(cmpl.bd_addr);  // Disconnect blocked devices
-    return;
-  }
-
   if (device.isAuthenticated) {
     DPRINTF(1, "Authentication successful");
     // printBondedDevices();
@@ -723,10 +718,14 @@ void ProximitySecurity::onAuthenticationComplete(esp_ble_auth_cmpl_t cmpl) {
       device.data.device_id = hashedKey;
       device.data.mac = macStr;
       device.data.paired = cmpl.success;
-
       // This will make sure the initial RSSI is added to device and saved to the device file on a proximity request event
       device.triggerRssiUpdate = true;
     } else {
+      if (device.data.is_blocked) {
+        DPRINTF(2, "Device is blocked: %s(%s)", device.data.name.c_str(), device.data.mac.c_str());
+        esp_ble_gap_disconnect(cmpl.bd_addr);  // Disconnect blocked devices
+        return;
+      }
       DPRINTF(0,
               "Device retrieved from JSON:\n"
               "    device.data.deviceID:\t***************\n"
@@ -1014,11 +1013,13 @@ void BLEProximity::processCommand(const ProximityCommand& cmd) {
   }
 
   if (!device.data.paired) {
-    DPRINTF(3, "Illegal write attempt: device not paired");
+    DPRINTF(2, "Illegal write attempt: device not paired");
+    esp_ble_gap_disconnect((uint8_t*)BLEAddress(device.data.mac).getNative());  // Disconnect unpaired devices
     return;
   }
   if (device.data.is_blocked) {
-    DPRINTF(3, "Illegal write attempt: device is blocked");
+    DPRINTF(2, "Illegal write attempt: device is blocked");
+    esp_ble_gap_disconnect((uint8_t*)BLEAddress(device.data.mac).getNative());  // Disconnect blocked devices
     return;
   }
 

@@ -18,6 +18,10 @@ Thumbs.db
 .idea/
 *.code-workspace
 
+# AI-specific
+AGENTS.md
+security_analysis.md
+
 # Project-specific
 .github/
 /src/main.cpp
