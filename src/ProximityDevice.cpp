@@ -243,22 +243,25 @@ bool ProximityDevice::remove() {
 }
 
 /**
- * @brief Get device_id from mac address
+ * @brief Get device_id from mac address if it exists in JSON
  * @param mac MAC address string
  * @return device_id string or empty string if not found in JSON
  */
 std::string ProximityDevice::getDeviceID(const std::string& mac) {
+  DPRINTF(0, "ProximityDevice::getDeviceID(%s)", mac.c_str());
   std::string macToUse = mac.empty() ? data.mac : mac;
   if (macToUse.empty()) {
     DPRINTF(3, "MAC address is empty");
     return std::string();
   }
 
+  DPRINTF(1, "Looking for device with MAC: %s", macToUse.c_str());
   BLEAddress addr(macToUse.c_str());
   esp_bd_addr_t macAddr;
   memcpy(macAddr, addr.getNative(), sizeof(macAddr));
 
   std::string deviceID = ProximitySecurity::getHashedPeerKey(macAddr);
+  DPRINTF(1, "Computed device ID: %s", deviceID.c_str());
   if (deviceID.empty()) {
     return std::string();
   }

@@ -89,7 +89,7 @@ class ProximityDevice {
   bool remove();                                         // deletes data entry from JSON and clears resets the data entry to default
   bool triggerRssiUpdate = false;                        // Helper to trigger update in callback functions
   bool isAuthenticated = false;                          // True if device is authenticated, else false
-  std::string getDeviceID(const std::string& mac = "");  // Get device_id from mac address
+  std::string getDeviceID(const std::string& mac = "");  // Get device_id from mac address if it exists in JSON
   bool get(const std::string& deviceID);                 // Retrieves device from JSON if exists and updates data struct
   bool reloadDevice(const std::string& deviceID = "");   // Update device data from json
   void setAdmin(bool value);                             // set data.is_admin to value and updates json
